@@ -1,4 +1,5 @@
 import os
+import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -6,60 +7,67 @@ import numpy as np
 tasks = [
     "Define Research Objectives",
     "Literature Review",
-    "Data Collection",
-    "Data Analysis",
-    "Model Development",
-    "Experiments",
+    "Goal Setting"  ,
+    "Basic Model Development (Milestone 1)",
+    "Basic Experiments",
     "Writing",
-    "Proofreading",
+    "Advanced Model Development (Milestone 2)",
+    "Advanced Experiments",
     "Submission",
     "Defense Preparation",
 ]
 
-# Define the schedule (1 = active, 0 = not active)
-schedule = [
-    [1, 0, 0, 0, 0],  # Define Research Objectives
-    [1, 0, 0, 0, 0],  # Literature Review
-    [0, 1, 0, 0, 0],  # Data Collection
-    [0, 1, 0, 0, 0],  # Data Analysis
-    [0, 0, 1, 0, 0],  # Model Development
-    [0, 0, 1, 0, 0],  # Experiments
-    [0, 0, 0, 1, 0],  # Writing
-    [0, 0, 0, 1, 1],  # Proofreading
-    [0, 0, 0, 0, 1],  # Submission
-    [0, 0, 0, 0, 1],  # Defense Preparation
-]
 
-# Find start month and duration for each task
-start_months = [next(j for j, val in enumerate(row) if val == 1) for row in schedule]
-durations = [sum(row) for row in schedule]
+start_date = datetime.date(2025, 1, 27)
+end_date = datetime.date(2025, 6, 27)
+
+num_intervals = (end_date - start_date).days // 14 + 2
+
+week_labels = [(start_date + datetime.timedelta(weeks=2 * i)).strftime('%b %d') for i in range(num_intervals)] # 11 (2-weeks)
+week_labels[-1] = "Jun 27"
+
+schedule = [
+    [1,1] + [0] * (num_intervals - 1),  # Define Research Objectives
+    [1,1,1] + [0] * (num_intervals - 1),  # Literature Review
+    [1,1] + [0] * (num_intervals - 1),  # Goal Setting
+    [0, 0, 1 ,1] + [0] * (num_intervals - 2),  # Model Development
+    [0, 0, 0 , 0, 1] + [0] * (num_intervals - 3),  # Experiments
+    [0] * (num_intervals - 5) + [1] * 4,  # Writing
+    [0] * (num_intervals - 7) + [1] * 2 ,  # Advanced Model Development (Milestone 2)
+    [0] * (num_intervals - 5) + [1] * 2, # Advanced Experiments
+    [0] * (num_intervals -2) + [1],  # Submission
+    [0] * (num_intervals -2) + [1],  # Defense Preparation
+]
 
 # Reverse lists for better visualization
 tasks.reverse()
-start_months.reverse()
-durations.reverse()
+schedule.reverse()
 
-# Define months for plotting
-month_labels = ["Month 1", "Month 2", "Month 3", "Month 4", "Month 5"]
-month_ticks = np.arange(len(month_labels))
+# Find start week and duration for each task
+start_weeks = [next(j for j, val in enumerate(row) if val == 1) for row in schedule]
+durations = [sum(row) for row in schedule]
 
 # Create figure
-fig, ax = plt.subplots(figsize=(10, 5))
+fig, ax = plt.subplots(figsize=(12, 6))
 
 # Plot tasks as horizontal bars
-ax.barh(tasks, durations, left=start_months, color="skyblue", edgecolor="black")
+y_positions = np.arange(len(tasks))
+for i, (start, duration) in enumerate(zip(start_weeks, durations)):
+    ax.barh(y_positions[i], duration, left=start, color="skyblue", edgecolor="black")
 
 # Formatting
-ax.set_xlabel("Months")
+ax.set_yticks(y_positions)
+ax.set_yticklabels(tasks)
+ax.set_xticks(np.arange(len(week_labels)))
+ax.set_xticklabels(week_labels, rotation=45)
+ax.set_xlabel("Timeline (2-week intervals)")
 ax.set_title("Resource-Efficient Embedded Neural Networks")
-ax.set_xticks(month_ticks)
-ax.set_xticklabels(month_labels)
 ax.grid(axis="x", linestyle="--", alpha=0.7)
 
-pictures_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'Pictures')
-
+# Save chart in the Pictures folder
+pictures_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Pictures")
 if not os.path.exists(pictures_folder):
     os.makedirs(pictures_folder)
-file_path = os.path.join(pictures_folder, "Thesis_Gantt_Chart.png")
 
+file_path = os.path.join(pictures_folder, "Thesis_Gantt_Chart.png")
 plt.savefig(file_path, bbox_inches="tight")
