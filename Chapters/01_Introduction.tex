@@ -1,7 +1,33 @@
 \chapter{Introduction}
-This template complies with the DTU Design Guide \url{https://www.designguide.dtu.dk/}. DTU holds all rights to the design programme including all copyrights. It is intended for two-sided printing. The \textbackslash \texttt{cleardoublepage} command can be used to ensure that new sections and the table of contents begins on a right hand page. The back page always ends as an odd page. 
+The rapid growth of Internet-of-Things (IoT) devices has created a demand for local intelligence on tiny embedded systems. IoT endpoints are often equipped with sensors and simple microcontrollers that must operate continuously; however, such devices typically have very limited computational and memory resources.
 
-All document settings have been gathered in Setup/Settings.tex. These are global settings meaning the settings will affect the whole document. Defining the title for example will change the title on the front page, the copyright page and the footer. A watermark can be enabled or disabled in Setup/Premeable.tex. You can edit the watermark to display draft, review, approved, confidential or anything else. By default the watermark is printed on top of the contents of the document and has a transparent grey colour. 
+Transmitting raw sensor data to the cloud for processing incurs latency, energy, and privacy costs. In response, the emerging field of Tiny Machine Learning (TinyML) has shown how compact neural networks can be run entirely on-device, alleviating the need for cloud connectivity. Performing inference locally on the device reduces response latency and communication bandwidth, and it improves energy efficiency and privacy.\cite{alajlan2022tinyml}
+
+These advances have enabled applications such as on-device vision and speech recognition in always-on sensors, wearables, and smart home devices. To meet the constraints of TinyML platforms, researchers have explored designing efficient neural networks. For example, MobileNets use depthwise separable convolutions and simple hyperparameters to build lightweight CNNs for mobile vision
+\cite{ConvNetworks-MobileNets} 
+In a similar spirit, EfficientNet introduces a compound scaling method that simultaneously balances network depth, width, and input resolution to maximize accuracy under resource budgets. \cite{tan2019efficientnet}
+
+These designs demonstrate that convolutional neural networks (CNNs) can be orders of magnitude smaller than standard models while maintaining high accuracy. Other techniques, such as network pruning and quantization, also reduce model size and speed up inference on constrained hardware. Together, these efforts have greatly advanced resource-efficient deep learning, enabling vision models to run on smartphones and edge devices with modest computation.
+
+\todo{See how you can add here the budget.}
+
+Under this budget, even quantized MobileNet-V2 exceeds the memory limit. These tight hardware limits demand highly compact neural architectures and efficient inference libraries tailored to microcontrollers. Despite the promise of TinyML, automatically finding suitable network architectures remains a challenge. Neural Architecture Search (NAS) aims to automate the design of neural networks by searching over a space of candidate architectures
+ \cite{liu2022survey}
+
+NAS has shown remarkable results on standard benchmarks (e.g. automatically discovered models that match or exceed human-designed networks on CIFAR-10/100 arxiv.org).
+
+However, NAS is notoriously computationally expensive. Liu et al. note that NAS is still “laborious and time-consuming” because it requires evaluating a large number of candidate networks \cite{liu2022survey} .
+
+For example, Liu et al. used a reinforcement-learning controller to search for a CIFAR-10 model and spent 28 days on 800 high-end GPUs to complete the search
+cite{liu2022survey} 
+
+Such a computational burden puts NAS beyond the reach of most researchers and prohibits on-device NAS. Compounding the difficulty, an effective NAS for embedded systems must enforce hardware constraints during search. In practice, this means the search must find architectures that meet tight limits on parameters, memory footprint, and latency.
+
+In the context of microcontrollers, failure to honor constraints renders a model useless: an architecture that can’t fit in 320 KB of RAM will never run on the target device. Thus the core problem is twofold: 
+
+\textbf{First}, how to drastically accelerate NAS so that viable architectures can be found without supercomputing resources, and
+
+\textbf{Second}, how to ensure the found architectures satisfy the severe hardware constraints of tiny embedded platforms.
 
 \section{This is a section}
 Every chapter is numbered and the sections inherit the chapter number followed by a dot and a section number. Figures, equations, tables, ect. also inherit the chapter numbering. 

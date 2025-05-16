@@ -1,6 +1,6 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
-\blindtext
+Deploying deep learning models on resource-constrained embedded platforms, such as the Arduino Nano BLE 33, presents significant challenges, particularly in balancing model accuracy, memory footprint, and computational efficiency. This thesis focuses on accelerating the Neural Architecture Search (NAS) process to rapidly identify lightweight, high-performing architectures suitable for ultra-low-power devices. The proposed approach introduces \textit{TakuNet}, a custom convolutional neural network architecture designed for efficient inference, and integrates an Evolutionary Algorithm that applies genetic operations such as mutation and crossover to navigate the search space. To optimize search efficiency, a surrogate model based on \textit{RankNet} is employed to predict the relative quality of candidate architectures, thereby significantly reducing the need for full model training. The framework incorporates intelligent memory estimation and complete model quantization workflows to ensure hardware constraint compliance throughout the search. Efficient training strategies and dynamic resource management further contribute to maximizing the number of evaluated architectures within limited timeframes. Final architectures are fully quantized and converted into C array formats for seamless deployment on the Arduino Nano BLE 33, demonstrating the effectiveness of the proposed accelerated NAS methodology in highly resource-constrained environments.
 
 
 

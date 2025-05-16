@@ -1,0 +1,66 @@
+\chapter{Architecture}
+
+This chapter presents the architectural design of the proposed model, \textbf{TakuNet}, developed to support fast and memory-efficient neural architecture search (NAS), particularly for embedded and resource-constrained environments. The architecture is modular and lightweight, designed to be both expressive and adaptable for automated optimization \cite{TakuNet}.
+
+We begin with an overview of the high-level components of TakuNet, followed by a detailed breakdown of its internal building blocks. Additionally, we discuss the model’s memory-aware design, training-time regularization strategies, and how it integrates with a NAS framework. Finally, we explain the deployment process and analyze key performance metrics, including floating point operations (FLOPs), memory footprint, and quantized model accuracy.
+
+
+\section{Overview of TakuNet}
+\TODO{Write this better} This work presents an enhanced version tailored for Neural Architecture Search (NAS) optimization. Instead of using a fixed architecture, the model parameters are treated as hyperparameters and are evolved automatically to optimize performance within embedded system constraints.
+
+
+The goal is to combine architectural efficiency, automated exploration through NAS, and hardware awareness to build a highly deployable, energy-efficient deep learning model
+
+\section{Modular Building Blocks}
+\subsection{Stem Block}
+Τhe Stem Block of the proposed architecture serves as the initial processing unit, tasked with transforming raw input images into a compact, information-rich feature representation while significantly reducing computational complexity. The block begins with a standard Conv2D layer that applies a set of learnable filters across the input, capturing fundamental visual patterns such as edges, textures, and color gradients. This layer employs a small kernel size ( 3×3 or 5x5 ) and a stride of (1-2), enabling early spatial downsampling and increasing the channel depth (e.g., from three RGB channels to forty feature maps), thereby balancing feature extraction richness with computational efficiency.
+
+A BatchNormalization layer immediately follows, stabilizing the output distributions of the convolution and enabling faster convergence by reducing internal covariate shift \cite{BatchNorm}. The normalized activations are then passed through a ReLU6 activation function, a variant of the standard ReLU that caps output values at six, thus enhancing robustness against activation outliers and facilitating quantization-friendly operations necessary for embedded deployment\cite{ConvNetworks}.
+
+To further improve the generalization capabilities of the model, an Adaptive Dropout layer is optionally applied. Unlike standard dropout, Adaptive Dropout dynamically adjusts the probability of drop during training, ensuring stronger regularization in the early training phases while allowing convergence toward optimal feature representations later and potentially assist avoid overfitting \cite{Dropout} .
+
+Subsequently, a DepthwiseConv2D layer is utilized to refine spatial features independently within each channel. By isolating the spatial convolutions per channel, this layer dramatically reduces the number of parameters and floating-point operations compared to a full convolution, which is crucial for maintaining a lightweight and efficient network architecture. \cite{ConvNetworks}.
+
+The combination of standard convolution for initial feature extraction and depthwise convolution for efficient refinement ensures that the output feature maps from the Stem Block preserve essential low-level information while minimizing computational burden. This design philosophy aligns with contemporary efficient CNN architectures, ensuring suitability for real-time applications and deployment on resource-constrained embedded systems\cite{chollet2017xception}.
+
+\subsection{Taku Block}
+
+    The Taku Block is the principal feature extraction module of the TakuNet architecture. It is designed to perform efficient and progressive refinement of spatial features while maintaining an extremely lightweight structure, making it suitable for deployment on resource-constrained embedded systems. 
+    Unlike traditional convolutional blocks that rely heavily on standard convolution operations (Conv2D), the Taku Block exclusively uses Depthwise Convolutions to minimize computational complexity and parameter count, while still enabling effective feature learning through careful architectural design choices.
+    
+    This Block is using DepthWise Conv Layer, Batch Normalaization, Relu and Skip Connection.
+
+    Finally, the processed feature maps are added to the original input of the Taku Block via a skip connection.This residual addition technique, inspired by ResNet \cite{zhou2021resnext}.
+    By employing skip connections, the Taku Block enhances information preservation and mitigates the vanishing gradient problem, allowing for deeper and more robust lightweight architectures.
+
+Tip!!
+Think it like that: If the image is a cat
+Then each Block is trying to learn Spatial Features
+Lets say the first is the whispers, the second is for the ears and so on
+
+\subsection{Downsampler Block}
+The \texttt{DownSampler} block in \texttt{TakuNet} employs a grouped pointwise convolution to achieve efficient feature transformation with minimal computational overhead. Specifically, the number of groups is determined dynamically based on the number of input channels and the network depth: it is set to the nearest valid integer to $\left\lfloor \frac{\texttt{Input\_Channel} + \texttt{Output\_Channel}}{\texttt{stages number}} \right\rfloor$. Here, \texttt{Input\_Channel} refers to the output of either the previous \texttt{DownSampler} or the initial stem block, while \texttt{Output\_Channel} corresponds to the output of the last \texttt{TakuBlock}, ensuring divisibility and preserving computational efficiency.
+
+The convolution operation uses a kernel size of $1 \times 1$, which is a critical design choice: a pointwise convolution with $1 \times 1$ kernels performs a linear projection across feature channels independently at each spatial location, mixing information across channels without introducing any spatial correlation. 
+This strategy allows channel-wise feature interactions while maintaining the spatial resolution and reducing computational complexity \cite{PointwiseGroupedCon}.
+If the input channels cannot be cleanly divided into the desired number of groups, the architecture gracefully falls back to a standard convolution by setting the number of groups to 1, ensuring robustness and model stability.
+
+Batch Normalization and a ReLU6 activation follow the grouped convolution to stabilize feature distributions and bound the activation dynamic range, respectively.
+
+Finally, spatial downsampling is performed using max pooling in earlier stages and average pooling in the final stage, followed by a lightweight Layer Normalization to enhance activation robustness, particularly on embedded and real-time systems.
+
+\subsection{Refiner Block}
+
+
+\subsection{Stage Block}
+
+
+\section{Memory Efficiency \& Trainability Checks}
+
+\section{Adaptive Regularization Strategy}
+
+\section{NAS Integration Perspective}
+
+\section{Deployment Pipeline}
+
+\section{FLOPs and Performance Reporting}
