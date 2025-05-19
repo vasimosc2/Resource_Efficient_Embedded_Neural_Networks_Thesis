@@ -1,10 +1,12 @@
 \chapter{Introduction}
+
+\TODO{Until 1.1 is old, maybe move motivation as a subsection here and split this}
 The rapid growth of Internet-of-Things (IoT) devices has created a demand for local intelligence on tiny embedded systems. IoT endpoints are often equipped with sensors and simple microcontrollers that must operate continuously; however, such devices typically have very limited computational and memory resources.
 
 Transmitting raw sensor data to the cloud for processing incurs latency, energy, and privacy costs. In response, the emerging field of Tiny Machine Learning (TinyML) has shown how compact neural networks can be run entirely on-device, alleviating the need for cloud connectivity. Performing inference locally on the device reduces response latency and communication bandwidth, and it improves energy efficiency and privacy.\cite{alajlan2022tinyml}
 
 These advances have enabled applications such as on-device vision and speech recognition in always-on sensors, wearables, and smart home devices. To meet the constraints of TinyML platforms, researchers have explored designing efficient neural networks. For example, MobileNets use depthwise separable convolutions and simple hyperparameters to build lightweight CNNs for mobile vision
-\cite{ConvNetworks-MobileNets} 
+\cite{ConvNetworksMobileNets} 
 In a similar spirit, EfficientNet introduces a compound scaling method that simultaneously balances network depth, width, and input resolution to maximize accuracy under resource budgets. \cite{tan2019efficientnet}
 
 These designs demonstrate that convolutional neural networks (CNNs) can be orders of magnitude smaller than standard models while maintaining high accuracy. Other techniques, such as network pruning and quantization, also reduce model size and speed up inference on constrained hardware. Together, these efforts have greatly advanced resource-efficient deep learning, enabling vision models to run on smartphones and edge devices with modest computation.
@@ -29,24 +31,56 @@ In the context of microcontrollers, failure to honor constraints renders a model
 
 \textbf{Second}, how to ensure the found architectures satisfy the severe hardware constraints of tiny embedded platforms.
 
-\section{This is a section}
-Every chapter is numbered and the sections inherit the chapter number followed by a dot and a section number. Figures, equations, tables, ect. also inherit the chapter numbering. 
 
-\subsection{This is a sub section}
-Sub sections are also numbered. In general try not to use a deep hierarchy of sub sections (\texttt{\textbackslash paragraph\{\}} and the like). The document will become segmented which will make the document appear less coherent. 
+\section{Research Objectives}
 
-\subsubsection{This is a sub sub section}
-And those are not numbered. It is possible to adjust how deep hierarchy of numbering sections goes in Setup/Settings.tex. 
+The primary goal of this research is to develop a resource-efficient Neural Architecture Search (NAS) framework that can rapidly discover and deploy optimized neural network models on constrained embedded devices. In particular, the work focuses on accelerating a custom-built NAS algorithm (based on a Genetic Algorithm) for the CIFAR-100 image classification dataset, while ensuring that the resulting neural networks are efficient enough to run on a microcontroller platform. 
 
-The front and back cover have been made to replicate the examples in the design guide \url{https://www.designguide.dtu.dk/#stnd-printmedia}. The name of department heading is omitted  because it is located in the top right corner (no need to write it twice). Take a look at \url{https://www.inside.dtu.dk/en/medarbejder/om-dtu-campus-og-bygninger/kommunikation-og-design/skabeloner/rapporter} if you want to make your cover separately. 
+To achieve this overarching goal, the following specific research objectives are pursued:
 
-Citing is done with the \texttt{biblatex} package \cite{publication1}. Cross referencing (figures, tables, ect.) is taken care by the \texttt{cleveref} package. Just insert the name of the label in \textbackslash \texttt{cref\{\}} and it will automatically format the cross reference. For example writing the \texttt{cleveref} command \textbackslash \texttt{cref\{fig:groupedcolumn\}} will output ``\cref{fig:groupedcolumn}''. Using \textbackslash \texttt{Cref\{\}} will capitalise the first letter and \textbackslash \texttt{crefrange\{\}\{\}} will make a reference range. An example: \Cref{fig:stackedbar} is an example of a stacked bar chart and \crefrange{fig:stackedcolumn}{fig:groupedcolumn} are three consecutive figures.
+\begin{enumerate}
+    \item \textbf{Design and implement a custom NAS algorithm using a Genetic Algorithm (GA):} Develop a NAS approach that leverages evolutionary strategies to automatically explore convolutional neural network architectures for the CIFAR-100 dataset (which consists of 60,000 32$\times$32 images across 100 classes~\cite{cifar}). The choice of a GA is motivated by its ability to perform global search and handle multi-objective optimization, and by prior successes of evolutionary methods in architecture search. This objective includes defining an appropriate search space and genetic encoding for candidate network architectures.
 
-\section{Font and symbols test}
-Symbols can be written directly in the document meaning there is no need for special commands to write special characters. I love to write special characters like æøå inside my \TeX{} document. Also á, à, ü, û, ë, ê, î, ï could be nice. So what about the ``¿'' character. What about ° é ® † ¥ ü | œ ‘ @ ö ä ¬ ‹ « © ƒ ß ª … ç ñ µ ‚ · ¡ “ £ ™ [ ] '. Some dashes - – —, and the latex form - -- --- 
+    \item \textbf{Accelerate the NAS search process:} Improve the speed and computational efficiency of the NAS algorithm so that high-performing network architectures can be identified with significantly reduced search time. Conventional NAS techniques are notoriously time-consuming and computationally expensive---for example, early NAS experiments required on the order of tens of thousands of GPU-hours~\cite{pham2018efficient}. In this work, the NAS algorithm is optimized to converge more quickly to promising architectures. The goal is to reduce the overall time and resources needed for the search, making NAS feasible without access to vast compute resources.
 
-This is a font test \newline 
-Arial Regular \newline 
-\textit{Arial Italic} \newline 
-\textbf{Arial Bold} \newline 
-\textbf{\textit{Arial Bold Italic}}
+    \item \textbf{Optimize architectures for embedded deployment:} Guide the NAS towards architectures that meet the strict resource constraints of the target device (the Arduino Nano 33 BLE). This objective entails incorporating hardware-aware criteria into the search fitness function---for instance, penalizing models that exceed a certain memory footprint or computational complexity. By making the NAS hardware-aware, the resulting neural networks are optimized for efficiency (in terms of model size, memory usage, and inference speed) on a microcontroller. Microcontroller-based devices have significantly limited resources (often only a few hundred kilobytes of RAM and modest CPU speeds~\cite{lin2020mcunet}), so the NAS must favor compact architectures. In practice, this means the discovered CNN models should fit within the Arduino’s 1~MB of flash and 256~KB of SRAM while still achieving high accuracy on CIFAR-100. Maintaining a favorable trade-off between accuracy and efficiency is key—the models should remain as accurate as possible on the classification task, even as they are simplified or pruned for resource efficiency.
+
+    \item \textbf{Deploy and evaluate the optimized model on hardware:} Take the best evolved neural network architectures and deploy them on the Arduino Nano 33 BLE platform to validate their real-world performance. This involves converting or quantizing the model (e.g., via TensorFlow Lite for Microcontrollers) and measuring on-device metrics such as inference latency, memory usage (RAM/Flash consumption), and classification accuracy. By profiling the deployed model, the research can confirm that the networks indeed operate within the device’s memory and processing limits. Analyzing these performance metrics will also help in identifying any bottlenecks (e.g., additional RAM and Flash consumption other than our model) and in demonstrating that the project’s improvements meet the targeted objectives. In summary, this objective ensures that the NAS-generated model is not only theoretically efficient but also practically viable on a real embedded device, thereby closing the loop from algorithm design to embedded deployment.
+\end{enumerate}
+
+
+\section{Scope}
+
+\TODO{Read This better}
+The scope of this thesis is confined to a specific application domain and methodology, as detailed below:
+
+\subsection{Target Problem and Dataset}
+
+This work is centered on an image classification task using the CIFAR-100 dataset. All experiments and evaluations use CIFAR-100 as the benchmark problem, and the NAS algorithm is specifically tailored to this dataset. Other datasets or machine learning tasks (e.g., CIFAR-10, ImageNet, object detection, or speech recognition) are outside the scope of this research. Focusing on CIFAR-100—a relatively complex vision dataset with 100 classes—provides a challenging test case for the NAS algorithm, while remaining tractable for experimentation within the resource and time constraints of a master’s thesis.
+
+\subsection{Neural Architecture Search Methodology}
+
+The research employs a custom Genetic Algorithm (GA) for neural architecture search. This evolutionary approach to NAS is the sole search strategy implemented and studied in depth. Alternative NAS techniques—such as reinforcement learning-based controllers or differentiable NAS methods—are not implemented in this project. These methods may be discussed in the literature review for context, but no comparative analysis is conducted. The decision to use a GA defines the methodological scope: all improvements and observations are made in the context of evolutionary search. The thesis does not attempt to develop new reinforcement learning algorithms or gradient-based NAS; instead, it strictly investigates how a GA-driven NAS can be accelerated and made hardware-aware.
+
+\subsection{Embedded Deployment Focus}
+
+The resulting neural network models are designed specifically for deployment on a microcontroller-based platform: the Arduino Nano 33 BLE. All optimization efforts (e.g., model compression, quantization) and evaluations are geared toward this embedded device environment. The Arduino Nano 33 BLE board, featuring an Arm Cortex-M4F MCU running at 64~MHz with 1~MB flash and 256~KB RAM~\cite{ArduinoNano}, serves as the representative target for “resource-constrained embedded devices.” The scope includes using standard embedded ML toolchains, such as TensorFlow Lite for Microcontrollers, to run inference on the device. Τhe deployment scope to a single device, the research can deeply analyze the model’s performance under consistent and well-understood resource constraints.
+
+\clearpage
+
+\subsection{Performance Metrics}
+
+This project emphasizes specific performance metrics when evaluating success. These include:
+\begin{itemize}
+    \item \textbf{Inference latency}
+    \item \textbf{Memory usage}, both static storage (Flash) and runtime memory (RAM)
+    \item \textbf{Classification accuracy}
+\end{itemize}
+
+These metrics align with the goal of resource efficiency and are measured both during the NAS process (as predictive estimates or constraints) and after deployment on the device. The scope does not include a detailed analysis of energy consumption or battery life, although power efficiency is inherently relevant to embedded scenarios.
+
+\TODO{Write this better}
+
+Energy usage is only indirectly considered, as reducing computation and memory usage generally improves energy efficiency. However, it is not explicitly measured due to limited instrumentation and time constraints. Likewise, the study does not include on-device training performance. All model training and NAS operations are performed on conventional computing hardware (e.g., GPU-equipped machines), and only inference is evaluated on the microcontroller.
+
+

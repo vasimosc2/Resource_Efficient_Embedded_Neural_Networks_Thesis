@@ -6,7 +6,7 @@ In this thesis, our objective is to deploy the proposed model on a highly constr
 
 
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.7\textwidth]{Pictures/Arduino image.png}
     \caption{Example of an Arduino Nano family microcontroller board. Modern TinyML deployments target devices like the Arduino Nano 33 BLE Sense, which feature low-power CPUs but only on the order of a few hundred kilobytes of SRAM and a few megabytes of flash memory. }
@@ -139,13 +139,3 @@ Once deployed, the TFLite model is evaluated directly on the Arduino to assess:
 \end{itemize}
 
 Testing was performed using real inputs and logs captured via serial communication to measure performance.
-
-\section{Challenges and Limitations}
-
-\begin{itemize}
-\item \textbf{Debugging Capabilities:} Limited visibility into model internals during inference.
-\item \textbf{Memory Errors:} Strict need to pre-profile memory usage before deployment.
-\item \textbf{Input Scaling:} Inputs had to be properly scaled and quantized to match TFLite expectations.
-\end{itemize}
-
-Despite these challenges, the deployment demonstrates the feasibility of running complex DL models on microcontrollers when guided by a NAS-optimized and memory-efficient design.

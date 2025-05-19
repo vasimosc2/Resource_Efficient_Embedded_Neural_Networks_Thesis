@@ -1,5 +1,6 @@
 \chapter{Nas Algorithm and Acceleration}
 
+\todo{I have already written some staff about NAS so this might be redundant}
 Neural Architecture Search (NAS) has emerged as a powerful tool for automating the design of deep learning models, but it is often criticized for its computational overhead and time-consuming evaluations. In practical settings, especially on resource-constrained platforms, reducing the total search time becomes a critical objective. This chapter presents the methods developed to accelerate NAS with a particular focus on increasing evaluation throughput while preserving model quality. We employ a Genetic Algorithm (GA)-based strategy to intelligently explore the architecture space, enabling us to assess a large number of candidate models efficiently. The following sections detail the motivation, design, and implementation of our approach, as well as the enhancements introduced to further reduce search time and improve scalability.
 
 \section{Memory Estimation}
@@ -127,7 +128,7 @@ Using a dataset of paired values, we trained the regression model and obtained t
 
  This model was saved using \textbf{joblib} and can be reused to instantly predict corrected flash estimates without invoking the TFLite converter.
 
- \begin{figure}[h]
+ \begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{Pictures/flash_regression_plot.png}
   \caption{Linear regression fit between estimated and true TFLite flash sizes.}
@@ -151,7 +152,7 @@ The key insight is that we can estimate the peak RAM usage by analyzing the size
 
 However, layers such as Concatenate introduce memory persistence, requiring previous activations to remain allocated until the merge operation completes. This forces multiple tensors to coexist in memory simultaneously, leading to overlapping memory demands. As a result, the real peak RAM usage can substantially exceed the simple input-output memory estimation. Empirical observations show that in models with frequent merging operations or consecutive high-memory layers, the actual RAM consumption can approach roughly twice the theoretical maximum estimated from single-layer analysis.
 
-\begin{figure}[h]
+\begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{Pictures/InitialAccurateMeasured.png}
   \caption{Comparison of Estimated, Accurate, and Measured RAM usage}
@@ -162,7 +163,7 @@ While the \textit{Accurate} estimation aligns more closely with the actual measu
 
 To better capture this discrepancy, we applied a similar approach as the previous chapter, creating a linear regression model between the Accurate and Measured RAM values. The resulting line—referred to as \textit{LinearRAM}—reveals a consistent pattern in the mismatch, suggesting that a correction factor can be reliably modeled.
 
-\begin{figure}[h]
+\begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{Pictures/ram_accurate_vs_measured.png}
   \caption{Measured RAM vs. Accurate Estimation with Linear Regression Fit}
@@ -182,7 +183,7 @@ studies confirm that optimizing memory usage tends to speed up inference. For ex
 
 Those assumptions were confirmed after our test, finding a Linear coorelation between the actual Measured RAM of the model and the inference time needed to produce the result.
 
-\begin{figure}[h]
+\begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{Pictures/inference_time_regression_plot.png}
   \caption{Linear Corelation between RAM and inference time.}

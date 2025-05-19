@@ -1,5 +1,55 @@
 \chapter{BackGround}
 
-\section{DataSet}
+\section{Embedded Systems}
 
-The CIFAR-100 dataset consists of 60,000 tiny (32×32 pixel) color images partitioned into 100 classes (each class has 600 images: 500 training and 100 test. Due to its diversity and difficulty (100 fine-grained categories), CIFAR-100 is a common benchmark for image classifiers
+Embedded systems are specialized computing systems designed to perform dedicated functions within a larger device or system, often subject to real-time operational constraints. Unlike general-purpose computers, embedded systems are typically built around microcontroller units (MCUs)---single integrated chips that include a processor, memory, and interfaces---allowing them to be highly compact and task-specific.
+
+These systems are characterized by limited resources in terms of processing power, memory, and storage. Moreover, they must often meet strict real-time requirements, meaning they must respond to events or sensor inputs within fixed deadlines to ensure correct overall system behavior \cite{techtarget_embedded_system}.
+
+Because many embedded devices run on battery or have tight power budgets, energy efficiency is a paramount concern. They are designed to operate with minimal power consumption---often on the order of milliwatts or less---while still performing their intended functions.
+
+In summary, an embedded system (especially one based on a microcontroller) tends to prioritize reliability and efficiency for a specific task, trading off raw computing performance for low power operation, small size, and simplicity. Embedded systems are ubiquitous in modern electronics, ranging from household appliances and wearable gadgets to automotive controllers and industrial sensors.
+
+A typical microcontroller-based embedded device might run at only a few tens of megahertz and have memory on the order of kilobytes to a few hundred kilobytes. For example, the Arduino Nano 33 BLE is a representative edge microcontroller platform that features a 32-bit Arm Cortex-M4 CPU running at 64~MHz, with 1~MB of flash storage and only 256~KB of RAM.
+
+These modest specifications underscore the severe resource constraints under which embedded devices operate. Real-time control loops and signal processing tasks are commonly handled on such hardware, but running computationally intensive algorithms (like deep neural networks) is challenging without special optimization.
+
+In many cases, embedded software must be carefully implemented in C/C++ or even assembly, and may run bare-metal or with a lightweight real-time operating system (RTOS), to meet the timing and memory limitations \cite{techtarget_embedded_system}. Furthermore, because the device may be deployed in an unattended environment on a small power source, strategies for conserving energy---such as duty cycling, low-power sleep modes, and efficient use of peripherals---are crucial.
+
+
+\clearpage
+
+\section{Convolutional Neural Networks (CNNs)}
+
+Modern artificial neural networks are powerful machine learning models inspired by the human brain, capable of learning complex patterns from data. In particular, Convolutional Neural Networks (CNNs) have become the de facto standard for image recognition and classification tasks.
+
+A CNN is a type of deep neural network designed to process data with a grid-like topology, such as 2D images, automatically learning a hierarchy of feature representations---from low-level edges and textures to high-level semantic objects. The design of CNNs is motivated by the way the animal visual cortex processes visual information, enabling these networks to extract spatial hierarchies of features in an adaptive manner \cite{yamashita2018convolutional}.
+
+\subsection{CNN Architecture}
+
+A typical CNN consists of a sequence of layers that can be grouped into two main components: \textbf{feature extraction} and \textbf{classification}. The feature extraction part includes multiple convolutional layers interleaved with pooling layers and nonlinear activations (such as ReLU). Each convolutional layer applies a set of learnable filters (kernels) across the input, producing a set of output feature maps.
+
+\TODO{Write this better}
+These filters are typically small, such as (\(3 \times 3\)) or (\(5 \times 5\)) pixels, and are applied across the spatial dimensions of the input image using convolution. This weight-sharing mechanism greatly reduces the number of parameters compared to a fully connected approach and enables translation-equivariant detection---allowing features such as edges and corners to be recognized regardless of their position in the input.
+
+For example, a fully connected layer processing a \(100 \times 100\) image would require 10,000 weights per neuron, while a convolutional layer may only require 25 weights per filter (using a \(5 \times 5\) kernel), illustrating the efficiency of the convolutional approach.
+
+Following convolutional layers, pooling layers (such as max pooling) downsample the feature maps, introducing translation invariance and reducing spatial resolution for subsequent layers. After several convolution and pooling stages, the network typically includes one or more fully connected (dense) layers that perform the final classification. The final output may be produced by a dense layer or a global average pooling layer, yielding class scores or probabilities.
+
+\subsection{CNNs for Image Classification}
+
+CNNs provide several advantages for image classification tasks such as CIFAR-100. They eliminate the need for manual feature engineering by learning complex features directly from data. Their hierarchical feature learning and parameter sharing allow for effective generalization across the image domain.
+
+These properties have enabled CNNs to achieve state-of-the-art accuracy on standard benchmarks such as CIFAR-10/100 and ImageNet. Prominent CNN architectures---including VGG, ResNet, and MobileNet---have demonstrated that increasing network depth and complexity can improve accuracy. However, this often comes at the cost of higher computational and memory demands, which is problematic for deployment on embedded systems.
+
+This tension between accuracy and resource constraints motivates efforts to optimize CNNs for embedded environments, seeking models that maintain performance while minimizing resource usage.
+
+\subsection{Neural Architecture Search (NAS) and CNN Optimization}
+
+The architecture of a CNN---including layer types, filter sizes, number of channels, and depth---directly affects both accuracy and computational cost. Designing optimal CNNs under such constraints is a challenging task. Neural Architecture Search (NAS) offers a solution by automating the exploration of possible architectures to find high-performing models under specific requirements \cite{pau2023quantitative}.
+
+NAS is a specialized AutoML technique that identifies the best neural network configuration for a given task and set of constraints. This is especially relevant for embedded applications, where constraints might include limited parameter count, memory size, inference time, or power consumption.
+
+NAS can incorporate such constraints into its search objective, enabling the discovery of CNN architectures that are suitable for deployment on resource-constrained platforms such as microcontrollers. Recent research, including projects like MCUNet, has shown that NAS can generate compact and efficient CNNs that retain high classification accuracy while fitting within tight hardware budgets. \cite{pau2023quantitative}.
+
+These automatically discovered architectures have demonstrated success on vision tasks like CIFAR-100, operating effectively on low-power microcontroller-class devices.
