@@ -1,49 +1,63 @@
 \chapter{Introduction}
 
-\TODO{Until 1.1 is old, maybe move motivation as a subsection here and split this}
-The rapid growth of Internet-of-Things (IoT) devices has created a demand for local intelligence on tiny embedded systems. IoT endpoints are often equipped with sensors and simple microcontrollers that must operate continuously; however, such devices typically have very limited computational and memory resources.
+\section{Background \& Motivation}
 
-Transmitting raw sensor data to the cloud for processing incurs latency, energy, and privacy costs. In response, the emerging field of Tiny Machine Learning (TinyML) has shown how compact neural networks can be run entirely on-device, alleviating the need for cloud connectivity. Performing inference locally on the device reduces response latency and communication bandwidth, and it improves energy efficiency and privacy.\cite{alajlan2022tinyml}
+The rapid expansion of the Internet of Things (IoT) ecosystem has led to widespread deployment of embedded devices equipped with sensors and low-power microcontrollers. These devices are expected to operate continuously in energy- and memory-constrained environments, often disconnected from cloud services. Offloading raw sensor data to centralized servers for processing introduces latency, energy costs, and privacy risks. This has sparked significant interest in \textbf{Tiny Machine Learning (TinyML)}—a field that focuses on running neural networks entirely on-device.
 
-These advances have enabled applications such as on-device vision and speech recognition in always-on sensors, wearables, and smart home devices. To meet the constraints of TinyML platforms, researchers have explored designing efficient neural networks. For example, MobileNets use depthwise separable convolutions and simple hyperparameters to build lightweight CNNs for mobile vision
-\cite{ConvNetworksMobileNets} 
-In a similar spirit, EfficientNet introduces a compound scaling method that simultaneously balances network depth, width, and input resolution to maximize accuracy under resource budgets. \cite{tan2019efficientnet}
+TinyML enables applications such as on-device speech recognition, gesture detection, and image classification, especially in always-on sensors, wearables, and smart home devices. To make this feasible, researchers have developed compact and efficient deep learning models tailored to edge hardware. \textbf{MobileNets}, for example, leverage depthwise separable convolutions to build lightweight convolutional neural networks (CNNs) that perform well on mobile vision tasks while maintaining low computational cost~\cite{ConvNetworksMobileNets}. \textbf{EfficientNet} extends this idea by using compound scaling to balance depth, width, and resolution for optimal accuracy under resource constraints~\cite{tan2019efficientnet}.
 
-These designs demonstrate that convolutional neural networks (CNNs) can be orders of magnitude smaller than standard models while maintaining high accuracy. Other techniques, such as network pruning and quantization, also reduce model size and speed up inference on constrained hardware. Together, these efforts have greatly advanced resource-efficient deep learning, enabling vision models to run on smartphones and edge devices with modest computation.
+Other techniques such as \textbf{network pruning} and \textbf{quantization} further compress models by eliminating redundant parameters and reducing numeric precision, respectively. Together, these strategies have significantly advanced \textbf{resource-efficient deep learning}, enabling inference on smartphones and edge devices with modest resources~\cite{alajlan2022tinyml}.
 
-\todo{See how you can add here the budget.}
+Despite these advances, TinyML deployments face \textbf{tight hardware limits}. For example, the Arduino Nano 33 BLE Sense has only 256\,KB of RAM and 1\,MB of flash memory. Under such constraints, even a quantized MobileNet-V2 may exceed available memory. These conditions demand highly compact architectures and efficient inference libraries optimized for microcontrollers.
 
-Under this budget, even quantized MobileNet-V2 exceeds the memory limit. These tight hardware limits demand highly compact neural architectures and efficient inference libraries tailored to microcontrollers. Despite the promise of TinyML, automatically finding suitable network architectures remains a challenge. Neural Architecture Search (NAS) aims to automate the design of neural networks by searching over a space of candidate architectures
- \cite{liu2022survey}
+While hand-designed architectures have made remarkable progress, manually crafting efficient models is time-consuming and often suboptimal. \textbf{Neural Architecture Search (NAS)} was proposed as a solution to this challenge: it automates the design of high-performance neural networks by systematically exploring large architecture spaces~\cite{liu2022survey}. NAS has produced architectures that match or surpass human-designed models on image classification benchmarks like CIFAR-10 and CIFAR-100.
 
-NAS has shown remarkable results on standard benchmarks (e.g. automatically discovered models that match or exceed human-designed networks on CIFAR-10/100 arxiv.org).
+However, NAS remains \textbf{computationally expensive}. For example, Liu et al. used a reinforcement learning–based NAS framework to design a model for CIFAR-10, requiring 28 days of computation on 800 GPUs~\cite{liu2022survey}. Such computational demands make NAS inaccessible to most researchers and wholly unsuitable for deployment on-device. Moreover, most NAS frameworks are not designed to be hardware-aware; they do not account for the strict memory, latency, and energy constraints of microcontroller-class devices.
 
-However, NAS is notoriously computationally expensive. Liu et al. note that NAS is still “laborious and time-consuming” because it requires evaluating a large number of candidate networks \cite{liu2022survey} .
+This thesis is motivated by the need to make NAS both \textbf{efficient} and \textbf{hardware-aware}. We aim to explore novel strategies—such as lightweight evaluation proxies and search-space constraints—that can reduce redundant computation, guide the search more intelligently, and produce architectures that are deployable on real-world embedded platforms. By developing a more efficient NAS pipeline, this work contributes to making automated model design feasible for TinyML applications.
 
-For example, Liu et al. used a reinforcement-learning controller to search for a CIFAR-10 model and spent 28 days on 800 high-end GPUs to complete the search
-cite{liu2022survey} 
+\section{Problem Statement}
 
-Such a computational burden puts NAS beyond the reach of most researchers and prohibits on-device NAS. Compounding the difficulty, an effective NAS for embedded systems must enforce hardware constraints during search. In practice, this means the search must find architectures that meet tight limits on parameters, memory footprint, and latency.
+The growth of TinyML has unlocked the possibility of deploying deep learning models directly on resource-constrained embedded devices. However, designing neural network architectures that are both accurate and lightweight enough to run on microcontrollers remains a significant challenge.
 
-In the context of microcontrollers, failure to honor constraints renders a model useless: an architecture that can’t fit in 320 KB of RAM will never run on the target device. Thus the core problem is twofold: 
+Transmitting sensor data to the cloud is costly in terms of latency, energy, and privacy. Running inference locally avoids these costs but requires models that are extremely compact and efficient. Techniques such as quantization, pruning, and architectural innovations like depthwise convolutions have made it possible to shrink models. Yet, these approaches often rely on \textbf{manual design}, which is time-intensive and may not yield optimal results for all tasks or devices.
 
-\textbf{First}, how to drastically accelerate NAS so that viable architectures can be found without supercomputing resources, and
+\textbf{Neural Architecture Search (NAS)} offers a solution by automating the model design process. However, existing NAS approaches are not well-suited for embedded environments:
+\begin{itemize}
+    \item They typically require \textbf{significant computational resources}—many GPU-days or weeks of training.
+    \item They often \textbf{ignore hardware constraints}, failing to enforce limits on memory usage, parameter count, or inference latency during the search.
+\end{itemize}
 
-\textbf{Second}, how to ensure the found architectures satisfy the severe hardware constraints of tiny embedded platforms.
+These shortcomings make NAS impractical for TinyML scenarios and limit its adoption in low-power, memory-constrained platforms like the Arduino Nano 33 BLE.
+
+Thus, the \textbf{core problem} addressed in this thesis is twofold:
+
+\begin{enumerate}
+    \item \textbf{How can we drastically accelerate NAS}, making it computationally feasible for small-scale research and practical deployment?
+    \item \textbf{How can we incorporate hardware-awareness into the NAS process}, ensuring that discovered architectures meet strict constraints in terms of memory, latency, and computational budget?
+\end{enumerate}
+
+Solving these challenges will help bridge the gap between NAS research and real-world deployment on microcontrollers, bringing automated deep learning closer to the edge.
+
+
+
+
+
+
 
 
 \section{Research Objectives}
 
-The primary goal of this research is to develop a resource-efficient Neural Architecture Search (NAS) framework that can rapidly discover and deploy optimized neural network models on constrained embedded devices. In particular, the work focuses on accelerating a custom-built NAS algorithm (based on a Genetic Algorithm) for the CIFAR-100 image classification dataset, while ensuring that the resulting neural networks are efficient enough to run on a microcontroller platform. 
+The primary objective of this research is to develop a resource-efficient Neural Architecture Search (NAS) framework capable of rapidly discovering and deploying optimized neural network models on constrained embedded platforms. Specifically, the research aims to accelerate a custom NAS algorithm, based on a Genetic Algorithm (GA), tailored for the CIFAR-100 image classification dataset, while ensuring that the resulting models are efficient enough to run on microcontroller hardware.
 
 To achieve this overarching goal, the following specific research objectives are pursued:
-
+ 
 \begin{enumerate}
-    \item \textbf{Design and implement a custom NAS algorithm using a Genetic Algorithm (GA):} Develop a NAS approach that leverages evolutionary strategies to automatically explore convolutional neural network architectures for the CIFAR-100 dataset (which consists of 60,000 32$\times$32 images across 100 classes~\cite{cifar}). The choice of a GA is motivated by its ability to perform global search and handle multi-objective optimization, and by prior successes of evolutionary methods in architecture search. This objective includes defining an appropriate search space and genetic encoding for candidate network architectures.
+    \item \textbf{Design a custom NAS algorithm using a Genetic Algorithm (GA):} Develop a NAS approach that leverages evolutionary strategies to automatically explore convolutional neural network architectures for the CIFAR-100 dataset (which consists of 60,000 32$\times$32 images across 100 classes~\cite{cifar}). The choice of a GA is motivated by its ability to perform global search and handle multi-objective optimization, and by prior successes of evolutionary methods in architecture search. This objective includes defining an appropriate search space and genetic encoding for candidate network architectures.
 
     \item \textbf{Accelerate the NAS search process:} Improve the speed and computational efficiency of the NAS algorithm so that high-performing network architectures can be identified with significantly reduced search time. Conventional NAS techniques are notoriously time-consuming and computationally expensive---for example, early NAS experiments required on the order of tens of thousands of GPU-hours~\cite{pham2018efficient}. In this work, the NAS algorithm is optimized to converge more quickly to promising architectures. The goal is to reduce the overall time and resources needed for the search, making NAS feasible without access to vast compute resources.
 
-    \item \textbf{Optimize architectures for embedded deployment:} Guide the NAS towards architectures that meet the strict resource constraints of the target device (the Arduino Nano 33 BLE). This objective entails incorporating hardware-aware criteria into the search fitness function---for instance, penalizing models that exceed a certain memory footprint or computational complexity. By making the NAS hardware-aware, the resulting neural networks are optimized for efficiency (in terms of model size, memory usage, and inference speed) on a microcontroller. Microcontroller-based devices have significantly limited resources (often only a few hundred kilobytes of RAM and modest CPU speeds~\cite{lin2020mcunet}), so the NAS must favor compact architectures. In practice, this means the discovered CNN models should fit within the Arduino’s 1~MB of flash and 256~KB of SRAM while still achieving high accuracy on CIFAR-100. Maintaining a favorable trade-off between accuracy and efficiency is key—the models should remain as accurate as possible on the classification task, even as they are simplified or pruned for resource efficiency.
+
 
     \item \textbf{Deploy and evaluate the optimized model on hardware:} Take the best evolved neural network architectures and deploy them on the Arduino Nano 33 BLE platform to validate their real-world performance. This involves converting or quantizing the model (e.g., via TensorFlow Lite for Microcontrollers) and measuring on-device metrics such as inference latency, memory usage (RAM/Flash consumption), and classification accuracy. By profiling the deployed model, the research can confirm that the networks indeed operate within the device’s memory and processing limits. Analyzing these performance metrics will also help in identifying any bottlenecks (e.g., additional RAM and Flash consumption other than our model) and in demonstrating that the project’s improvements meet the targeted objectives. In summary, this objective ensures that the NAS-generated model is not only theoretically efficient but also practically viable on a real embedded device, thereby closing the loop from algorithm design to embedded deployment.
 \end{enumerate}
@@ -51,8 +65,7 @@ To achieve this overarching goal, the following specific research objectives are
 
 \section{Scope}
 
-\TODO{Read This better}
-The scope of this thesis is confined to a specific application domain and methodology, as detailed below:
+The scope of this thesis is deliberately limited to a well-defined application area and methodological framework, as outlined below:
 
 \subsection{Target Problem and Dataset}
 
@@ -70,17 +83,48 @@ The resulting neural network models are designed specifically for deployment on 
 
 \subsection{Performance Metrics}
 
-This project emphasizes specific performance metrics when evaluating success. These include:
+This research defines a clear set of metrics to evaluate both the quality and practical viability of the neural network models generated through the NAS process. These metrics are chosen to align closely with the constraints and goals of deploying deep learning models on ultra-low-power embedded systems. The metrics are considered at two key stages of the workflow:
 \begin{itemize}
-    \item \textbf{Inference latency}
-    \item \textbf{Memory usage}, both static storage (Flash) and runtime memory (RAM)
-    \item \textbf{Classification accuracy}
+    \item During the NAS process, to guide architecture selection and pruning via predictive models and constraint checks.
+\end{itemize}
+\begin{itemize}
+    \item After deployment on hardware, to validate actual on-device behavior and efficiency.
+\end{itemize}
+The primary performance metrics are the following:
+
+\textbf{Inference latency}
+
+This refers to the time it takes for the deployed model to process an input and produce a prediction on the Arduino Nano 33 BLE. Latency is critical in real-time embedded applications—such as gesture recognition, audio processing, or sensor data classification—where delayed responses can compromise functionality or user experience. Measuring latency ensures that the model is fast enough for time-sensitive applications.
+
+\textbf{Memory usage}
+
+Memory efficiency is assessed in two dimensions:
+\begin{itemize}
+    \item \textbf{\textit{Static memory usage (Flash)}:} This includes the size of the compiled model binary (weights, parameters, and code) stored in the microcontroller's non-volatile flash memory. The total must remain under the 1MB limit of the Arduino Nano 33 BLE.
+
+    \item \textbf{\textit{Runtime memory usage (RAM)}:} This includes memory used during inference (activations, buffers, stack, and heap). Since the target device only has 256KB of RAM, models must be sufficiently compact to run within this tight constraint. Excessive RAM usage can lead to runtime errors or unpredictable behavior.
 \end{itemize}
 
-These metrics align with the goal of resource efficiency and are measured both during the NAS process (as predictive estimates or constraints) and after deployment on the device. The scope does not include a detailed analysis of energy consumption or battery life, although power efficiency is inherently relevant to embedded scenarios.
+\textbf{Classification accuracy}
 
-\TODO{Write this better}
+Although the focus is on efficiency, model accuracy on the CIFAR-100 dataset remains a key metric. The objective is to maintain as high accuracy as possible while minimizing model complexity. This trade-off between performance and resource usage is at the core of this thesis, and all evaluated architectures are measured for their top-1 classification accuracy on a held-out test set.
 
-Energy usage is only indirectly considered, as reducing computation and memory usage generally improves energy efficiency. However, it is not explicitly measured due to limited instrumentation and time constraints. Likewise, the study does not include on-device training performance. All model training and NAS operations are performed on conventional computing hardware (e.g., GPU-equipped machines), and only inference is evaluated on the microcontroller.
+\subsection{\textbf{Limitations and Exclusions}}
+
+Certain performance aspects are acknowledged but fall outside the scope of this study due to resource or technical limitations:
+
+\paragraph{\textbf{Energy Consumption}:}
+
+While energy efficiency is a critical concern for embedded systems, direct power measurements (e.g., in milliwatts or joules) are not performed. This is due to the lack of precise measurement tools and time constraints within the thesis. However, energy usage is indirectly optimized, as reducing model size, computation, and memory access typically leads to lower power draw. Thus, the design choices made in this work still promote energy efficiency, even if not quantitatively evaluated.
+
+\TODO{NOT YET MEASURED BUT IT IS PLANNED}
+
+
+\paragraph{\textbf{On-Device Training}:}
+The thesis does not address training on the microcontroller. All model training and architecture search are conducted using conventional computing systems (e.g., desktop or GPU-accelerated environments). The embedded device is used exclusively for inference, which reflects current practical use cases, as microcontrollers typically lack the computational capacity for full model training.
+
+\subsection{\textbf{Summary}}
+
+By focusing on these well-defined and measurable performance metrics, the thesis ensures that the proposed NAS framework and the resulting models are not only theoretically sound but also practically deployable. The approach emphasizes real-world constraints, which are often overlooked in academic work, thereby bridging the gap between deep learning research and embedded systems deployment.
 
 

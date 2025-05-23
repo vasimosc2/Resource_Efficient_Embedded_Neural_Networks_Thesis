@@ -1,4 +1,4 @@
-\chapter{BackGround}
+\chapter{Literature Review}
 
 \section{Embedded Systems}
 
@@ -16,25 +16,112 @@ These modest specifications underscore the severe resource constraints under whi
 
 In many cases, embedded software must be carefully implemented in C/C++ or even assembly, and may run bare-metal or with a lightweight real-time operating system (RTOS), to meet the timing and memory limitations \cite{techtarget_embedded_system}. Furthermore, because the device may be deployed in an unattended environment on a small power source, strategies for conserving energy---such as duty cycling, low-power sleep modes, and efficient use of peripherals---are crucial.
 
+\clearpage
+
+\subsection{Black Box and DARTS}
+\TODO{Add it on the Introdcution}
+Neural Architecture Search (NAS) is a technique to automatically design neural network architectures. In the context of Convolutional Neural Networks (CNNs), two main NAS paradigms are widely discussed: \textbf{black-box NAS} and \textbf{differentiable NAS}, notably \textit{DARTS} (Differentiable ARchiTecture Search).
+
+Black-box NAS treats the architecture search problem as a discrete, black-box optimization task. This means the internal structure of the architecture is not differentiable and is instead evaluated using methods like reinforcement learning (RL), evolutionary algorithms (EA), or Bayesian optimization~\cite{qiu2023shortest}. Each candidate CNN is trained (fully or partially) and evaluated using a fitness function (e.g., accuracy, latency). Based on these evaluations, the search algorithm proposes new candidates.
+
+
+
+
+
+\textbf{Advantages:} 
+\begin{itemize}
+    \item Unrestricted search space; any performance metric or constraint can be handled, making suitable for real AutoML \cite{burrello2023enhancing}.
+    \item Offers high flexibility in defining the search space and objective. Specially good when trying to create a model which should fit inside certain hardware constrains.
+\end{itemize}
+
+\textbf{Disadvantages:}
+\begin{itemize}
+    \item Very expensive in terms of computation; early works required thousands of GPU days~\cite{liu2018darts}.
+    \item the final selected architecture usually needs to be trained from scratch to reach peak performance. This step significantly adds to the overall time and compute required, especially when done for each promising candidate. 
+\end{itemize}
+
+\begin{comment}
+DARTS reformulates NAS as a differentiable optimization problem~\cite{liu2018darts}. Instead of searching in a discrete space, it relaxes architecture choices into continuous parameters that can be optimized via gradient descent.
+\end{comment}
+
+\textbf{Definition:} \textit{DARTS} (Differentiable ARchiTecture Search) and related ``one-shot'' methods embed the discrete NAS search into a continuous optimization problem ~\cite{liu2018darts}, introducing DARTS as a way to make NAS tractable for CNN design by relaxing the discrete choices into continuous weights \cite{elsken2019neural}.
+
+Instead of sampling architectures one at a time, DARTS trains a single over-parameterized \textit{supernet} \cite{SuperNet} that contains all candidate operations (e.g., convolutions, pooling) at each layer or edge. Each edge in the CNN cell is modeled as a weighted sum of possible operations:
+
+\begin{equation}
+y = \sum_{i=1}^{m} \alpha_i \, o_i(x), \quad \alpha_i \geq 0, \quad \sum_{i} \alpha_i = 1
+\end{equation}
+
+where $o_i$ are candidate conv/pool/skip operations and $\alpha_i$ are continuous architecture parameters. These $\alpha_i$ weights serve as proxies for the architecture choice.
+
+\TODO{See that again}
+
+The search is then a \textit{bi-level optimization}: the normal network weights $w$ (for convolution filters) and the architecture weights $\alpha$ are both learned, typically by alternating gradient descent on training and validation data \cite{elsken2019neural}. Once training converges, DARTS discretizes the solution by selecting, for each layer, the operation with the highest weight $\alpha$ – yielding a concrete CNN architecture (often a small ``cell'' that can be stacked).
+
+
+\textbf{Advantages:}
+\begin{itemize}
+    \item Significantly more efficient than black-box methods (orders of magnitude less compute)~\cite{liu2018darts}.
+    \item Enables fast, gradient-based optimization for cell-based CNN design.
+\end{itemize}
+
+\textbf{Disadvantages:}
+\begin{itemize}
+    \item \textit{Limited to differentiable and pre-defined search spaces:} DARTS requires that all architecture choices be expressible as continuous and differentiable parameters. This means the engineer must define a fixed search space in advance, such as a set of candidate filter sizes (e.g., 3×3, 5×5) or layer types, which DARTS will then optimize over. As a result, DARTS does not design networks from scratch but rather assists in selecting the best options within a constrained, cell-based framework. This limits its ability to explore broader architectural innovations and makes the process only partially automated~\cite{elsken2019neural}.
+
+    
+    \item \textit{Optimization instability and performance collapse:} The bi-level optimization in DARTS is known to be sensitive to the training dynamics. It often leads to degenerate solutions, such as over-prioritizing parameter-free operations like skip connections or pooling layers, resulting in under-parameterized networks~\cite{zela2020understanding}.
+    
+    \item \textit{Incorporating hard constraints is difficult:} DARTS does not natively support hard architectural constraints, such as strict latency, memory, or energy budgets. These constraints must be approximated using soft regularization terms or multi-objective weighting, which may not guarantee feasibility in real-world deployment scenarios~\cite{king2025micronas}.
+    
+    \item \textit{Memory and compute bottlenecks:} Since the supernet includes all candidate operations simultaneously, memory usage can become a bottleneck, especially for high-resolution input or larger search spaces. This limits the scalability of DARTS to more complex tasks or deeper networks.
+\end{itemize}
+
+\subsection{Comparison Summary}
+Black-box NAS methods align with the AutoML paradigm by treating the search process as a black-box optimization task. These methods do not assume any structural knowledge of the network and rely solely on performance metrics to guide the search, thus enabling fully automated exploration of large, complex search spaces. In contrast, differentiable NAS approaches like DARTS introduce a more guided optimization framework by relaxing the architecture search space into continuous parameters. This allows the use of gradients to efficiently steer the search, leading to faster convergence but at the cost of reduced flexibility.
+
+
+
+
+
+
 
 \clearpage
 
+
+
+
+
 \section{Convolutional Neural Networks (CNNs)}
 
+\TODO{Maybe add a bit extra in this}
 Modern artificial neural networks are powerful machine learning models inspired by the human brain, capable of learning complex patterns from data. In particular, Convolutional Neural Networks (CNNs) have become the de facto standard for image recognition and classification tasks.
 
 A CNN is a type of deep neural network designed to process data with a grid-like topology, such as 2D images, automatically learning a hierarchy of feature representations---from low-level edges and textures to high-level semantic objects. The design of CNNs is motivated by the way the animal visual cortex processes visual information, enabling these networks to extract spatial hierarchies of features in an adaptive manner \cite{yamashita2018convolutional}.
 
+
+\TODO{NAS TO BE ADDED}
+
 \subsection{CNN Architecture}
 
-A typical CNN consists of a sequence of layers that can be grouped into two main components: \textbf{feature extraction} and \textbf{classification}. The feature extraction part includes multiple convolutional layers interleaved with pooling layers and nonlinear activations (such as ReLU). Each convolutional layer applies a set of learnable filters (kernels) across the input, producing a set of output feature maps.
+A typical Convolutional Neural Network (CNN) architecture can be divided into two primary components: \textbf{feature extraction} and \textbf{classification}.
 
-\TODO{Write this better}
-These filters are typically small, such as (\(3 \times 3\)) or (\(5 \times 5\)) pixels, and are applied across the spatial dimensions of the input image using convolution. This weight-sharing mechanism greatly reduces the number of parameters compared to a fully connected approach and enables translation-equivariant detection---allowing features such as edges and corners to be recognized regardless of their position in the input.
+\textbf{Feature Extraction:}
+\newline
+The feature extraction part consists of a sequence of convolutional layers, each typically followed by a non-linear activation function (such as ReLU6). These convolutional layers apply a series of learnable filters (kernels) to the input data. These filters are generally small in spatial dimensions—commonly 3×3 or 5×5 pixels—and are convolved across the height and width of the input image.
 
-For example, a fully connected layer processing a \(100 \times 100\) image would require 10,000 weights per neuron, while a convolutional layer may only require 25 weights per filter (using a \(5 \times 5\) kernel), illustrating the efficiency of the convolutional approach.
+One of the key advantages of this approach is the weight-sharing mechanism, where the same set of filter weights is applied across different spatial locations of the input. This dramatically reduces the number of parameters compared to fully connected layers, while also enabling the model to detect features such as edges and textures regardless of their position in the image (a property known as translation equivariance).
 
-Following convolutional layers, pooling layers (such as max pooling) downsample the feature maps, introducing translation invariance and reducing spatial resolution for subsequent layers. After several convolution and pooling stages, the network typically includes one or more fully connected (dense) layers that perform the final classification. The final output may be produced by a dense layer or a global average pooling layer, yielding class scores or probabilities.
+For example, a fully connected layer processing a 100 × 100 image would require 10,000 weights per neuron. In contrast, a convolutional layer using a 5 × 5 kernel requires only 25 weights per filter, highlighting the parameter efficiency of convolutional operations.
+
+Pooling layers, such as max pooling, follow certain convolutional layers to downsamplethe feature maps. This reduces their spatial resolution and introduces translation invariance, meaning the network becomes more robust to small shifts in the input. Pooling also helps to reduce the computational load and mitigate overfitting.
+
+\textbf{Classification:}
+\newline
+After several convolutional and pooling stages, the network transitions to the classification component. At this stage, the extracted feature maps are either flattened or aggregated using techniques such as Global Average Pooling, and passed to one or more fully connected (dense) layers.
+
+These final layers are responsible for interpreting the high-level features and performing the actual classification task. The network typically concludes with a dense output layer or a global average pooling layer that produces a vector of class scores or probabilities, often using a softmax activation in the case of multi-class classification.
+
 
 \subsection{CNNs for Image Classification}
 

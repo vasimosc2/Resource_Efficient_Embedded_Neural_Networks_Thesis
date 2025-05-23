@@ -1,5 +1,5 @@
 \chapter{Deployment Environment}
-
+\label{chap:DeploymentEnvironment}
 \section{Description}
 
 In this thesis, our objective is to deploy the proposed model on a highly constrained edge device\textemdash the \textbf{Arduino Nano 33 BLE Sense}. This microcontroller board features an Arm Cortex-M4 CPU with limited RAM and Flash memory, making it a challenging yet meaningful platform for evaluating the efficiency of neural network architectures optimized via Neural Architecture Search (NAS). The primary goal is to demonstrate that a well-structured lightweight model can achieve high accuracy while remaining deployable on low-power hardware.
@@ -135,7 +135,7 @@ Once deployed, the TFLite model is evaluated directly on the Arduino to assess:
 \begin{itemize}
 \item \textbf{Inference Latency:} Time required for a single prediction.
 \item \textbf{RAM \& Flash Usage:} Ensuring the model fits within 256 KB RAM and 1 MB Flash.
-\item \textbf{Accuracy Retention:} Comparison of TFLite accuracy vs original float32 model.
+
 \end{itemize}
 
 Testing was performed using real inputs and logs captured via serial communication to measure performance.

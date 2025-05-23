@@ -1,7 +1,12 @@
-\chapter{Nas Algorithm and Acceleration}
+\chapter{NAS Algorithm and Acceleration}
 
 \todo{I have already written some staff about NAS so this might be redundant}
-Neural Architecture Search (NAS) has emerged as a powerful tool for automating the design of deep learning models, but it is often criticized for its computational overhead and time-consuming evaluations. In practical settings, especially on resource-constrained platforms, reducing the total search time becomes a critical objective. This chapter presents the methods developed to accelerate NAS with a particular focus on increasing evaluation throughput while preserving model quality. We employ a Genetic Algorithm (GA)-based strategy to intelligently explore the architecture space, enabling us to assess a large number of candidate models efficiently. The following sections detail the motivation, design, and implementation of our approach, as well as the enhancements introduced to further reduce search time and improve scalability.
+
+\begin{sloppypar}
+Neural Architecture Search (NAS) has emerged as a powerful tool for automating the design of deep learning models, but it is often criticized for its computational overhead and time-consuming evaluations. In practical settings, especially on resource-constrained platforms, reducing the total search time becomes a critical objective. 
+\newline
+This chapter presents the methods developed to accelerate NAS with a particular focus on increasing evaluation throughput while preserving model quality. We employ a Genetic Algorithm (GA)-based strategy to intelligently explore the architecture space, enabling us to assess a large number of candidate models efficiently. The following sections detail the motivation, design, and implementation of our approach, as well as the enhancements introduced to further reduce search time and improve scalability.
+\end{sloppypar}
 
 \section{Memory Estimation}
 
@@ -143,6 +148,7 @@ Although this process introduces a small time overhead—typically just a few se
 \clearpage
 
 \subsection{Ram Memory Estimation}
+
 During inference, each layer produces intermediate activation tensors that occupy RAM. However, not all intermediate tensors exist in memory at once – their lifetimes are limited to when they are being computed and used. A naïve approach (not reusing any buffer) would allocate a separate buffer for every intermediate tensor but this can lead to a huge memory footprint. \cite{tensorflow_RamEstimation} 
 
 
@@ -150,7 +156,11 @@ The key insight is that we can estimate the peak RAM usage by analyzing the size
 
  A simplified but effective heuristic is to assume that the input and output tensors of each layer represent the concurrent memory needed during the computation of that layer, and take the maximum over all layers \cite{tensorflow_RamEstimation}. 
 
-However, layers such as Concatenate introduce memory persistence, requiring previous activations to remain allocated until the merge operation completes. This forces multiple tensors to coexist in memory simultaneously, leading to overlapping memory demands. As a result, the real peak RAM usage can substantially exceed the simple input-output memory estimation. Empirical observations show that in models with frequent merging operations or consecutive high-memory layers, the actual RAM consumption can approach roughly twice the theoretical maximum estimated from single-layer analysis.
+However, layers such as Concatenate introduce memory persistence, requiring previous activations to remain allocated until the merge operation completes. This forces multiple tensors to coexist in memory simultaneously, leading to overlapping memory demands. As a result, the real peak RAM usage can substantially exceed the simple input-output memory estimation. 
+
+\TODO{PEAK OF each Stage , Stem Block, Refiner}
+
+Empirical observations show that in models with frequent merging operations or consecutive high-memory layers, the actual RAM consumption can approach roughly twice the theoretical maximum estimated from single-layer analysis.
 
 \begin{figure}[ht]
   \centering
@@ -196,8 +206,13 @@ Those assumptions were confirmed after our test, finding a Linear coorelation be
 \subsection{Current Estimation}
 
 
+\TODO{Section to be added when current is estiamted}
+
 \section{Model Comparison}
 After the creation of the models in each new generation in the GA, we face the challenge on how to correctly choose the best models as parents for the upcoming generations and how to accelerate this procedure. So in the section the Tournament Selection and RankNet will be explained on how they tackle those issues. 
+
+
+\TODO{Performance STOP}
 
 \subsection{Tournament Selection}
 Tournament Selection (TS) is a genetic operator in which a small subset of individuals is chosen at random and the fittest among them is selected as a parent \cite{hussain2020trade}. 
@@ -214,7 +229,7 @@ By keeping a variety of architectures in the gene pool, TS enables the GA to exp
 
 In our initial approach, we attempted to train all the models and then use the TS, to create the new generation. After some experiments, we find out that this approach was extremely time-consuming to fully train a model only to drop it in the tournament selection. For this reason we introduced \textit{RankNet} to be able to predict the best model even without training.
 
-Δες το Λιγο αυτο
+\TODO{Look at this a bit more}
 
 \textbf{RankNet} is a pairwise ranking model originally developed for learning-to-rank tasks (e.g. search result ranking). It uses a shared neural network to map each input (here, an architecture embedding) to a score, then models the probability that one item is better than another by a sigmoid on the score difference \cite{RankNet}.
 
