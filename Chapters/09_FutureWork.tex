@@ -1,0 +1,28 @@
+\chapter{Future Work}
+
+The acceleration strategies proposed in this thesis present opportunities for broader application across neural architecture search (NAS) problems and embedded AI domains. Several promising research directions can be identified to expand the impact and applicability of the presented techniques.
+
+\section{Suggested improvements}
+
+The acceleration strategies developed in this work could be significantly enhanced by leveraging high-performance computing (HPC) resources. Modern distributed computing environments (e.g., multi-GPU servers or clusters) instead of training and testing candidate networks sequentially on a single GPU, a pool of GPUs can be assigned to evaluate many candidates in parallel, cutting down the wall-clock time per search cycle.
+
+
+\section{Generalization to Other Domains}
+
+While the present work has focused on image classification using the CIFAR-100 dataset, extending the accelerated NAS framework to other data modalities is a natural progression. Embedded applications frequently require models for sound classification (e.g., keyword spotting, environmental sound recognition), time-series forecasting, or sensor anomaly detection. Applying the proposed acceleration methods in these contexts would test their generality and adaptability. For instance, audio-based tasks often rely on spectrogram-based CNNs, which share structural similarities with image models, making them a suitable testbed for validating NAS acceleration techniques across domains.
+
+\section{Application to Diverse Network Architectures}
+
+This work has concentrated on convolutional neural networks (CNNs), but modern embedded AI increasingly involves hybrid and transformer-based architectures. Future work could investigate whether the acceleration methods remain effective when searching over architectures that include self-attention mechanisms, mobile transformer blocks, or graph-based structures. The ability to efficiently search such architectures would expand the relevance of this approach to a wider array of tasks and model families, including those suited for more complex feature representations.
+
+\section{Expansion of Search Space and Operators}
+
+Another avenue involves broadening the search space to include additional layers in the architecture that are commonly used in resource-constrained environments. Integrating such primitives into the search process, while preserving fast convergence through the proposed acceleration methods, would demonstrate the flexibility and extensibility of the framework.
+
+\section{Evaluation in Unsupervised and Self-supervised Settings}
+
+Beyond supervised classification, accelerated NAS methods could be extended to unsupervised and self-supervised learning paradigms. Architectures such as autoencoders or contrastive models are commonly deployed in embedded contexts for tasks like anomaly detection and representation learning. Applying the proposed acceleration strategies to these use cases would help establish their effectiveness in optimizing encoder--decoder architectures, where reconstruction loss or contrastive objectives replace traditional classification loss.
+
+\bigskip
+
+By pursuing these directions, future research can both extend the scope of the acceleration techniques introduced in this thesis and reinforce their utility across a diverse set of tasks, architectures, and hardware configurations. This would further establish the proposed methods as a foundational component of efficient NAS in real-world embedded AI applications.

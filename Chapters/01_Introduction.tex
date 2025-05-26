@@ -48,12 +48,14 @@ Solving these challenges will help bridge the gap between NAS research and real-
 
 \section{Research Objectives}
 
-The primary objective of this research is to develop a resource-efficient Neural Architecture Search (NAS) framework capable of rapidly discovering and deploying optimized neural network models on constrained embedded platforms. Specifically, the research aims to accelerate a custom NAS algorithm, based on a Genetic Algorithm (GA), tailored for the CIFAR-100 image classification dataset, while ensuring that the resulting models are efficient enough to run on microcontroller hardware.
+The primary objective of this research is to develop a resource-efficient Neural Architecture Search (NAS) framework capable of rapidly discovering and deploying optimized neural network models on constrained embedded platforms. Specifically, the research aims to accelerate a NAS algorithm, based on a Genetic Algorithm (GA), tailored for the CIFAR-100 image classification dataset, while ensuring that the resulting models are efficient enough to run on microcontroller hardware.
 
 To achieve this overarching goal, the following specific research objectives are pursued:
  
 \begin{enumerate}
-    \item \textbf{Design a custom NAS algorithm using a Genetic Algorithm (GA):} Develop a NAS approach that leverages evolutionary strategies to automatically explore convolutional neural network architectures for the CIFAR-100 dataset (which consists of 60,000 32$\times$32 images across 100 classes~\cite{cifar}). The choice of a GA is motivated by its ability to perform global search and handle multi-objective optimization, and by prior successes of evolutionary methods in architecture search. This objective includes defining an appropriate search space and genetic encoding for candidate network architectures.
+    \item \textbf{Design a custom NAS algorithm using a Genetic Algorithm (GA):} Develop a NAS approach that leverages evolutionary strategies to automatically explore convolutional neural network architectures for the CIFAR-100 dataset (which consists of 60,000 32$\times$32 images across 100 classes~\cite{cifar}). 
+    
+    The choice of a GA is motivated by its ability to perform global search and handle multi-objective optimization, and by prior successes of evolutionary methods in architecture search. This objective includes defining an appropriate search space and genetic encoding for candidate network architectures.
 
     \item \textbf{Accelerate the NAS search process:} Improve the speed and computational efficiency of the NAS algorithm so that high-performing network architectures can be identified with significantly reduced search time. Conventional NAS techniques are notoriously time-consuming and computationally expensive---for example, early NAS experiments required on the order of tens of thousands of GPU-hours~\cite{pham2018efficient}. In this work, the NAS algorithm is optimized to converge more quickly to promising architectures. The goal is to reduce the overall time and resources needed for the search, making NAS feasible without access to vast compute resources.
 

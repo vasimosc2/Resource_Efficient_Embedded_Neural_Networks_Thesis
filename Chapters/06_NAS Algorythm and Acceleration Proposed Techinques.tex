@@ -1,11 +1,8 @@
-\chapter{NAS Algorithm and Acceleration}
+\chapter{Optimizations of NAS Algorithm}
 
-\todo{I have already written some staff about NAS so this might be redundant}
 
 \begin{sloppypar}
-Neural Architecture Search (NAS) has emerged as a powerful tool for automating the design of deep learning models, but it is often criticized for its computational overhead and time-consuming evaluations. In practical settings, especially on resource-constrained platforms, reducing the total search time becomes a critical objective. 
-\newline
-This chapter presents the methods developed to accelerate NAS with a particular focus on increasing evaluation throughput while preserving model quality. We employ a Genetic Algorithm (GA)-based strategy to intelligently explore the architecture space, enabling us to assess a large number of candidate models efficiently. The following sections detail the motivation, design, and implementation of our approach, as well as the enhancements introduced to further reduce search time and improve scalability.
+While black-box Neural Architecture Search (NAS), as described in the Section~\ref{chap:nas}, offers a highly flexible and effective framework for discovering high-performing models, it is also notoriously resource-intensive and time-consuming. These limitations make it challenging to apply in real-world scenarios, particularly on constrained hardware. In this chapter, we introduce a set of optimizations designed to improve the efficiency of black-box NAS, with a focus on accelerating evaluations and reducing the overall search time, without compromising the quality of the discovered architectures.
 \end{sloppypar}
 
 \section{Memory Estimation}
@@ -92,7 +89,7 @@ Empirical measurements during deployment revealed that, in addition to the model
 
 \subsection{Flash Memory Estimation}
 
-Estimating the flash memory required to deploy a neural network model on a microcontroller is critical for resource-constrained edge computing. A common approach is to compute the flash requirement based on the number of model parameters, which represent the weights and biases that must be stored in read-only memory (ROM) \cite{pau2023tiny}.
+Estimating the amount of flash memory needed to deploy a neural network model on a microcontroller is a crucial step in the development of edge computing applications, especially in environments where resources such as memory and processing power are severely limited. Flash memory, typically used as read-only memory (ROM), must store the model's parameters, which include the weights and biases of the neural network. These parameters define the behavior of the model and are essential for its operation during inference. A widely used method to estimate the flash memory requirement is to calculate the total storage needed for all the model's parameters. This involves summing up the memory footprint of each weight and bias, which are usually represented as floating-point or fixed-point numbers. By understanding the total number of parameters and their respective data types, developers can make an informed estimate of the memory space required for storing the model on a microcontroller. \cite{pau2023tiny}.
 
 This method is fast and easy to compute, but it doesn't accurately reflect the size of a fully converted \texttt{.tflite} model due to additional overhead such as:
 \begin{itemize}
@@ -107,7 +104,7 @@ The initial estimation function used the following logic:
 \text{Estimated Flash (KB)} = \frac{\text{Total Parameters} \times \text{Data Type Size (Bytes)}}{1024}
 \]
 
-This approach uses the \texttt{count\_params()} method from Keras and assumes a constant multiplier depending on data type 1 byte as when we save the .tflite we have quantaize the model to int8 ( 1 byte)
+This approach uses the \texttt{count\_params()} method from Keras and assumes a constant multiplier depending on data type. In our case, we have quantized the model, our datatype is int8 (1 byte).
 
 While efficient, this method consistently underestimates the actual TFLite model size, which might allow bigger than the allowed to be trained while it will not fit in the deployment enviroment making it time consuming training something too big.
 
@@ -118,7 +115,7 @@ To verify accuracy, a dataset of real models was collected. Each model was:
     \item Measured for actual file size in kilobytes
 \end{enumerate}
 
-The results showed a consistent non-linear gap between the estimated and actual sizes, motivating the use of a correction model.
+The results showed a consistent gap between the estimated and actual sizes, motivating the use of a correction model.
 
 We applied a simple linear regression model to learn the relationship between the estimated flash (param-based) and the actual flash (TFLite file size):
 
@@ -158,20 +155,29 @@ The key insight is that we can estimate the peak RAM usage by analyzing the size
 
 However, layers such as Concatenate introduce memory persistence, requiring previous activations to remain allocated until the merge operation completes. This forces multiple tensors to coexist in memory simultaneously, leading to overlapping memory demands. As a result, the real peak RAM usage can substantially exceed the simple input-output memory estimation. 
 
-\TODO{PEAK OF each Stage , Stem Block, Refiner}
 
-Empirical observations show that in models with frequent merging operations or consecutive high-memory layers, the actual RAM consumption can approach roughly twice the theoretical maximum estimated from single-layer analysis.
+As illustrated in Figure~\ref{fig:TakuNet}, our model architecture is organized into three main stages:
 
-\begin{figure}[ht]
-  \centering
-  \includegraphics[width=0.85\textwidth]{Pictures/InitialAccurateMeasured.png}
-  \caption{Comparison of Estimated, Accurate, and Measured RAM usage}
-  \label{fig:initial-ram-comparison}
-\end{figure}
+\begin{itemize}
+    \item \textbf{Stem Block}
+    \item \textbf{TakuStages Block}
+    \item \textbf{Refiner Block}
+\end{itemize}
 
-While the \textit{Accurate} estimation aligns more closely with the actual measured RAM, it still tends to underestimate total memory usage due to the aforementioned memory persistence effects.
+The \textbf{Stem Block} and \textbf{Refiner Block} consist of consecutive layers without any additions or skip connections. Consequently, estimating the peak RAM usage for these blocks is straightforward—it corresponds to the maximum RAM required by any single layer within the block.
 
-To better capture this discrepancy, we applied a similar approach as the previous chapter, creating a linear regression model between the Accurate and Measured RAM values. The resulting line—referred to as \textit{LinearRAM}—reveals a consistent pattern in the mismatch, suggesting that a correction factor can be reliably modeled.
+In contrast, each \textbf{TakuStage} includes concatenation operations. When computing the memory usage for these operations, we must consider that both input tensors must be held in memory simultaneously to compute the output. Therefore, for each TakuStage, we calculate the peak RAM usage by identifying the maximum RAM required across all concatenation operations.
+
+To estimate the total maximum RAM required by the entire model, we take the maximum RAM usage from each of the three blocks and select the largest among them:
+
+\begin{equation}
+\text{RAM}_{\text{max}} = \max\left( \text{RAM}_{\text{Stem}},\ \text{RAM}_{\text{TakuStages}},\ \text{RAM}_{\text{Refiner}} \right)
+\label{eq:max_ram}
+\end{equation}
+
+While the RAM estimation aligns closely with the actual measured RAM, it still tends to underestimate total memory usage due to the aforementioned memory persistence effects.
+
+To better capture this discrepancy, we applied a similar approach as the previous chapter, creating a linear regression model between the Estimated and Measured RAM values. The resulting line—referred to as \textit{LinearRAM}—reveals a consistent pattern in the mismatch, suggesting that a correction factor can be reliably modeled.
 
 \begin{figure}[ht]
   \centering
@@ -181,8 +187,6 @@ To better capture this discrepancy, we applied a similar approach as the previou
 \end{figure}
 
 
-\clearpage
-
 
 \subsection{Inference Time Estimation}
 Another very interesting estimation we can do based on the already computed RAM memory is the Inference time.
@@ -191,7 +195,7 @@ Inference time refers to the time a trained model takes to produce an output fro
 studies confirm that optimizing memory usage tends to speed up inference. For example, using fused in-place operations to reduce peak RAM footprint by about 1.6 × yielded a 1.2–2× faster inference execution in a TinyML context \cite{inferenceTime1}. Similarly, an embedded ML framework that lowered memory usage by 31\% achieved a remarkable 92\% reduction in inference latency compared to a less memory-efficient baseline~\cite{inferenceTime1}.
 
 
-Those assumptions were confirmed after our test, finding a Linear coorelation between the actual Measured RAM of the model and the inference time needed to produce the result.
+Those assumptions were confirmed after our test, finding a Linear corelation between the actual Measured RAM of the model and the inference time needed to produce the result.
 
 \begin{figure}[ht]
   \centering
@@ -199,8 +203,6 @@ Those assumptions were confirmed after our test, finding a Linear coorelation be
   \caption{Linear Corelation between RAM and inference time.}
   \label{fig:inference time}
 \end{figure}
-
-\clearpage
 
 
 \subsection{Current Estimation}
@@ -210,9 +212,6 @@ Those assumptions were confirmed after our test, finding a Linear coorelation be
 
 \section{Model Comparison}
 After the creation of the models in each new generation in the GA, we face the challenge on how to correctly choose the best models as parents for the upcoming generations and how to accelerate this procedure. So in the section the Tournament Selection and RankNet will be explained on how they tackle those issues. 
-
-
-\TODO{Performance STOP}
 
 \subsection{Tournament Selection}
 Tournament Selection (TS) is a genetic operator in which a small subset of individuals is chosen at random and the fittest among them is selected as a parent \cite{hussain2020trade}. 
@@ -258,6 +257,9 @@ These mechanisms help RankNet adapt over time and increase the reliability of it
 
 Once a model is selected—either as part of the initial population or through evolutionary selection—it must undergo full training to evaluate its true performance. Given the potentially large number of candidate architectures evaluated during the search, reducing training time becomes crucial for overall efficiency. Therefore, we implemented several optimization strategies to accelerate the training process, without significantly compromising the quality of the resulting models. These strategies aim to minimize unnecessary computational overhead, enabling faster feedback loops within the NAS cycle and more rapid convergence.
 
+\subsection{Performance STOP}
+This optimization technique aims to reduce unnecessary training time by identifying when a model is unlikely to improve significantly. In many cases, if the validation accuracy does not show meaningful improvement after a certain number of epochs, training can be safely stopped early. The rationale is that even with additional training, the model’s performance is unlikely to increase substantially, and therefore its overall fitness score will remain largely unchanged. This idea is supported by recent NAS studies that implement early termination strategies to speed up the search process without compromising model selection accuracy \cite{li2020random}. By terminating such models early, we avoid wasted computation while still preserving a reliable basis for comparison with other candidate architectures. This strategy helps reduce the total search time while maintaining the fairness and effectiveness of the NAS process.
+
 \subsection{Early Stopping}
 
 Research indicates that during CNN training, the initial few epochs often yield the most significant gains in model learning, strongly shaping the network’s eventual accuracy. In other words, a large portion of a CNN’s final validation performance is determined early in training. The following are key findings from credible sources that support this idea.
@@ -298,8 +300,6 @@ where:
 Cosine learning rate schedules have been widely adopted in modern image classification models such as ResNet, DenseNet, and MobileNet, and are considered state-of-the-art for datasets like CIFAR-10 and CIFAR-100~\cite{lewkowycz2021decay}. Studies show that cosine decay leads to faster convergence and slightly improved final accuracy compared to traditional step-based schedules.
 
 As illustrated in Figure~\ref{fig:val_accuracy_diff_epochs}, for the TakuNet model, increasing the number of training epochs beyond 10 does not significantly improve validation accuracy, given the Learning Rate Scheduling technique used. This saturation effect aligns with the theoretical behavior of cosine decay: once the learning rate approaches zero, further updates become minimal. Given that each epoch takes approximately one minute to complete, it is computationally efficient to limit training to around 10 epochs—achieving nearly optimal results in a fraction of the training time and is sufficient to be able to compare models.
-
-
 
 \begin{figure}[ht]
     \centering

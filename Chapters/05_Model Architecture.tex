@@ -1,13 +1,13 @@
 \chapter{Architecture}
 
-\TODO{Point out that the goal is to keep a fixed architecture but just find the best parameters}
-
 \label{chap:Architecture}
 This chapter presents the architectural design of the proposed model, \textbf{TakuNet}, developed to support fast and memory-efficient neural architecture search (NAS), particularly for embedded and resource-constrained environments. 
 TakuNet is a lightweight convolutional neural network originally designed for efficient real-time inference on resource-constrained platforms \cite{TakuNet}.
 The core design goal of TakuNet is to minimize the number of parameters and computational cost without significantly sacrificing accuracy.
 
 This architecture has been used as a template because, according to recent studies, it requires significantly fewer parameters for a given dataset compared to other common architectures such as SqueezeNet and MobileNet \cite{TakuNet}. This makes it more feasible to develop a model that fits within our deployment environment.
+
+This architecture is used throughout the NAS algorithm with the goal of identifying the optimal hyperparameters and optimizers for each layer. In this thesis, no additional layers are introduced; instead, only the existing parameters are shuffled. This decision was made due to time constraints, as introducing new layers would have significantly expanded the search space and increased the computational complexity of the NAS process.
 
 We begin with an overview of the high-level components of TakuNet, followed by a detailed breakdown of its internal building blocks. Additionally, we discuss the model’s memory-aware design, training-time regularization strategies, and how it integrates with a NAS framework. Finally, we explain the deployment process and analyze key performance metrics, including floating point operations (FLOPs), memory footprint, and quantized model accuracy.
 
@@ -18,7 +18,7 @@ This work introduces an enhanced version of the architecture, specifically adapt
 
 The goal is to integrate architectural efficiency, automated design exploration via NAS, and hardware-aware optimization to develop a deep learning model that is both highly deployable and energy-efficient.
 
-An illustration of our Architecture can be depicted in ......
+An illustration of our Architecture can be depicted in Figure~\ref{fig:TakuNet}
 
 \section{Modular Building Blocks}
 

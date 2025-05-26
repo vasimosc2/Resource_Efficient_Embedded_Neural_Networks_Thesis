@@ -46,10 +46,11 @@ The training and evaluation phase is a critical part of the overall pipeline, re
 \end{itemize}
 The dataset is challenging due to its high number of classes and imbalanced class distribution, which increases the importance of using evaluation metrics beyond just accuracy.
     \item \textbf{Model Training}
-    
+
+    \TODO{See which TensorFlow version you use, maybe also add citation to this}
     Each candidate architecture is trained from scratch using TensorFlow 2.x, with GPU acceleration enabled where available. The training pipeline includes the following steps:
 \begin{itemize}
-    \item \textbf{Initialization:} Models are initialized with random weights and built dynamically based on sampled architecture parameters from the search space.
+    \item \textbf{Initialization:} Models are initialized and built dynamically based on sampled architecture parameters from the search space.
     \item \textbf{Training Metrics:} \textit{Training Accuracy} is recorded per epoch to monitor learning progress and \textit{Validation Accuracy} is used to estimate generalization and prevent overfitting.
 
 \end{itemize}
@@ -96,10 +97,10 @@ The output of this phase—accuracy metrics and resource profiles—is fed into 
 
 
 
-\subsection*{NAS Evolutionary Loop}
+\subsection{NAS Evolutionary Loop}
 
 To automate the discovery of high-performing neural network architectures, we use a \textbf{genetic algorithm} — a technique inspired by the process of natural selection. This approach allows us to explore a large space of possible model architectures without manually designing each one.
-\todo{ADD the correct stuff for fitness function}
+
 The process is organized around a population of candidate models, which evolves over time. The goal is to \textbf{optimize a fitness function} that takes into account both the model’s \textbf{accuracy} and its \textbf{resource usage} (such as memory, number of parameters, or inference time).
 Here is a breakdown of how this process works:
 
@@ -140,42 +141,11 @@ In each generation, the population is updated through three main steps:
     \end{itemize}
 \end{enumerate}
   
-  \textbf{Stopping Criteria}
-  
-  \TODO{Write this a bit better based on the Code}
-  
-  \begin{itemize}
-      \item The evolutionary loop continues for a fixed amount of time (e.g., 2 hours) or until the population shows convergence (i.e., improvements in fitness have plateaued).
-      \item After each generation, the best-performing model is logged for analysis.
-  \end{itemize}
+\textbf{Termination Strategy and Output}
 
-\textbf{Final Model Selection (Pareto Front Analysis)}
-\begin{itemize}
-    \item At the end of the search, we perform Pareto front analysis.
-    \item This identifies models that offer the best trade-offs between accuracy and resource usage — no other model in the population is better in both objectives.
-    \item These models are considered Pareto-optimal and are saved for future evaluation or deployment.
-
-
-\end{itemize}
+The NAS process is executed for a fixed duration of 5 hours. During this time, all trained models are collected and stored for further analysis. At the end of the search, the algorithm returns the final \textit{Pareto front}, which includes all non-dominated architectures that offer optimal trade-offs between competing objectives—such as accuracy, memory usage, and flash size. These Pareto-optimal models represent the best candidates discovered within the given time budget.
 
 This evolutionary process allows us to discover well-balanced and efficient neural architectures without manual trial and error. It is especially useful in scenarios where both performance and efficiency are critical.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
