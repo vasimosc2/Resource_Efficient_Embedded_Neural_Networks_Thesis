@@ -202,8 +202,9 @@ The Adaptive Dropout mechanism in TakuNet addresses this limitation by treating 
 \paragraph{Placement of Dropout Layers.} Dropout is strategically applied in the following parts of the architecture:
 \begin{itemize}
     \item \textbf{Stem Block:} This initial layer extracts low-level features from the input. Applying a mild dropout here ensures that early representations do not become overly specialized, improving generalization from the outset.
+    
     \item \textbf{Taku Blocks (Main Stages):} These depthwise convolutional blocks form the core of the architecture and are repeated multiple times. Dropout in these layers is more heavily used because they contain most of the model’s representational capacity and are more prone to memorization. Since they are deeper in the network, they tend to accumulate overfitting more readily, making them ideal candidates for adaptive regularization.
-    \clearpage
+    
     \item \textbf{Refiner Block:} This final stage performs global feature aggregation and classification. Due to its dense connectivity and proximity to the output layer, it is particularly sensitive to overfitting. Therefore, dropout here typically starts with a higher rate and may increase more aggressively if overfitting is detected.
 \end{itemize}
 

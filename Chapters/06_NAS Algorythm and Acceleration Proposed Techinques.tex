@@ -257,8 +257,32 @@ These mechanisms help RankNet adapt over time and increase the reliability of it
 
 Once a model is selected—either as part of the initial population or through evolutionary selection—it must undergo full training to evaluate its true performance. Given the potentially large number of candidate architectures evaluated during the search, reducing training time becomes crucial for overall efficiency. Therefore, we implemented several optimization strategies to accelerate the training process, without significantly compromising the quality of the resulting models. These strategies aim to minimize unnecessary computational overhead, enabling faster feedback loops within the NAS cycle and more rapid convergence.
 
+\clearpage
+
 \subsection{Performance STOP}
-This optimization technique aims to reduce unnecessary training time by identifying when a model is unlikely to improve significantly. In many cases, if the validation accuracy does not show meaningful improvement after a certain number of epochs, training can be safely stopped early. The rationale is that even with additional training, the model’s performance is unlikely to increase substantially, and therefore its overall fitness score will remain largely unchanged. This idea is supported by recent NAS studies that implement early termination strategies to speed up the search process without compromising model selection accuracy \cite{li2020random}. By terminating such models early, we avoid wasted computation while still preserving a reliable basis for comparison with other candidate architectures. This strategy helps reduce the total search time while maintaining the fairness and effectiveness of the NAS process.
+\label{sec:performance_stop}
+To reduce NAS training cost, we stop training candidate architectures early when their validation performance is unsatisfactory. We use two criteria:
+\begin{itemize}
+
+\item \textbf{Diminishing-returns rule}: If during a continuous window comprising $\alpha = 20\%$ of the total epochs the validation accuracy improves by less than 10\%, training is stopped. This criterion captures cases of strongly diminishing returns, where continued training is unlikely to yield significant improvements. If the model has not shown meaningful progress during this window, it is reasonable to assume that the remaining training budget will have limited impact.
+
+\item \textbf{No-improvement rule}: If the validation accuracy does not improve at all for a fixed number of consecutive epochs (e.g., 8–10), training is halted early. This rule acts as a complementary safeguard to the diminishing-returns criterion, enabling early termination even before reaching the 20\% threshold when stagnation is already evident.
+
+
+\end{itemize}
+
+\TODO{CHAT}
+We emphasize that our \emph{fitness function} is the final test-set accuracy of each architecture. The above rules only use validation accuracy to guide early stopping, so the overall selection based on test accuracy is unaffected. Prior work shows that such stopping can greatly reduce compute without hurting accuracy. For example, Aach *et al.* (2023) report that using performance-based early stopping in parallel NAS yields roughly $2$–$5\times$ speedups \emph{while preserving test-set accuracy}.
+
+In their experiments, the final validation accuracies of models found with early stopping differed by less than $1\%$ from those without stopping. Similarly, Zheng *et al.* (2020) achieve on the order of $10^3\times$ faster search via aggressive budgeted stopping with only $\approx0.3\%$ accuracy loss.
+
+These results justify our strategy: we incur at most a negligible change in final accuracy in exchange for large reductions in training time and resources.
+
+\TODO{Mine}
+In many cases, if the validation accuracy does not show meaningful improvement after a certain number of epochs, training can be safely stopped early. The rationale is that even with additional training, the model’s performance is unlikely to increase substantially, and therefore its overall fitness score will remain largely unchanged. This idea is supported by recent NAS studies that implement early termination strategies to speed up the search process without compromising model selection accuracy \cite{li2020random}. By terminating such models early, we avoid wasted computation while still preserving a reliable basis for comparison with other candidate architectures. This strategy helps reduce the total search time while maintaining the fairness and effectiveness of the NAS process.
+
+
+
 
 \subsection{Early Stopping}
 
@@ -280,6 +304,9 @@ In order to speed up the entire NAS algorithm, a Custom Callback method was intr
 \clearpage
 
 \subsection{Learning Rate Scheduling}
+
+\TODO{This diagram has to be changed}
+
 To accelerate convergence and improve generalization, we employed a cosine annealing learning rate schedule with a linear warmup phase of 5 epochs. This strategy adjusts the learning rate dynamically across training: starting from a small value, rising linearly during warmup, and then decaying smoothly according to a cosine function relative to the total number of epochs. 
 
 The cosine function used ,inspired by \cite{loshchilov2016sgdr} : 

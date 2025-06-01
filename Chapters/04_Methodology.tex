@@ -45,10 +45,10 @@ The training and evaluation phase is a critical part of the overall pipeline, re
 
 \end{itemize}
 The dataset is challenging due to its high number of classes and imbalanced class distribution, which increases the importance of using evaluation metrics beyond just accuracy.
-    \item \textbf{Model Training}
 
-    \TODO{See which TensorFlow version you use, maybe also add citation to this}
-    Each candidate architecture is trained from scratch using TensorFlow 2.x, with GPU acceleration enabled where available. The training pipeline includes the following steps:
+    \item \textbf{Model Training}
+    Each candidate architecture is trained from scratch using TensorFlow 2.18.0, with GPU acceleration enabled where available. The training pipeline includes the following steps:
+    
 \begin{itemize}
     \item \textbf{Initialization:} Models are initialized and built dynamically based on sampled architecture parameters from the search space.
     \item \textbf{Training Metrics:} \textit{Training Accuracy} is recorded per epoch to monitor learning progress and \textit{Validation Accuracy} is used to estimate generalization and prevent overfitting.
