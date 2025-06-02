@@ -271,14 +271,6 @@ To reduce NAS training cost, we stop training candidate architectures early when
 
 \end{itemize}
 
-\TODO{CHAT}
-We emphasize that our \emph{fitness function} is the final test-set accuracy of each architecture. The above rules only use validation accuracy to guide early stopping, so the overall selection based on test accuracy is unaffected. Prior work shows that such stopping can greatly reduce compute without hurting accuracy. For example, Aach *et al.* (2023) report that using performance-based early stopping in parallel NAS yields roughly $2$–$5\times$ speedups \emph{while preserving test-set accuracy}.
-
-In their experiments, the final validation accuracies of models found with early stopping differed by less than $1\%$ from those without stopping. Similarly, Zheng *et al.* (2020) achieve on the order of $10^3\times$ faster search via aggressive budgeted stopping with only $\approx0.3\%$ accuracy loss.
-
-These results justify our strategy: we incur at most a negligible change in final accuracy in exchange for large reductions in training time and resources.
-
-\TODO{Mine}
 In many cases, if the validation accuracy does not show meaningful improvement after a certain number of epochs, training can be safely stopped early. The rationale is that even with additional training, the model’s performance is unlikely to increase substantially, and therefore its overall fitness score will remain largely unchanged. This idea is supported by recent NAS studies that implement early termination strategies to speed up the search process without compromising model selection accuracy \cite{li2020random}. By terminating such models early, we avoid wasted computation while still preserving a reliable basis for comparison with other candidate architectures. This strategy helps reduce the total search time while maintaining the fairness and effectiveness of the NAS process.
 
 
@@ -290,14 +282,16 @@ Research indicates that during CNN training, the initial few epochs often yield 
 
 In an analysis of “critical learning periods,” the authors found that “the first few epochs are critical for the creation of strong connections” in a neural network, after which these connections “do not appear to change during additional training.” They conclude that this initial learning phase “plays a key role in determining the outcome of the training process.” In practice, most of the network’s representational capacity and generalization ability is established in these early epochs \cite{achille2017critical}
 
-In Figure ~\ref{fig:val_accuracy}, it can be depicted the normalized validation accuracy of couple of TakuNet models through the epochs. 
-It is clear that the accuracy above 65\% of the total validation is achieved within the first epochs of training.
-In order to speed up the entire NAS algorithm, a Custom Callback method was introduced, which measured the validation accuracy of the model at the important the 20\% of the total epochs. If the validation accuracy did not exceed a specific threshold, the algorithm abandons the model as it is pointless to spend more training time to a non-optimal model based on its constraints.
+In Figure~\ref{fig:val_accuracy}, the normalized validation accuracy of several \texttt{TakuNet} models is shown across training epochs. It is evident that for all four models, the biggest part of the final validation accuracy is reached within the first few epochs. Specifically, by epoch 5 out of 30—that is, just \( \frac{5}{30} \times 100 = 16.7\% \) of the total training time—each model already achieves $\sim 70\%$ of its eventual accuracy and by epoch 10 out of 30—that is, just \( \frac{10}{30} \times 100 = 33.4\% \)  of the total training time—each model already achieves $\sim 80\%$ of its eventual accuracy . This highlights the efficiency of early training and suggests that prolonged training may offer diminishing returns.
+
+\TODO{Here there is an issue, we cant define the best. The only thing I can say is that through many experiments I get the best parameters}
+
+In order to speed up the entire NAS algorithm, a Custom Callback method was introduced, which measured the validation accuracy of the model at the most important epochs. If the validation accuracy did not exceed a specific threshold, the algorithm abandons the model as it is pointless to spend more training time to a non-optimal model based on its constraints.
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.85\linewidth]{Pictures/val_accuracy_comparison.png}
-    \caption{Normalized validation accuracy curves for TakuNet variants. Around epoch 10, the models typically achieve more than 65\% of their total validation performance.}
+    \caption{Normalized validation accuracy curves for different TakuNet variants.}
     \label{fig:val_accuracy}
 \end{figure}
 
@@ -305,9 +299,7 @@ In order to speed up the entire NAS algorithm, a Custom Callback method was intr
 
 \subsection{Learning Rate Scheduling}
 
-\TODO{This diagram has to be changed}
-
-To accelerate convergence and improve generalization, we employed a cosine annealing learning rate schedule with a linear warmup phase of 5 epochs. This strategy adjusts the learning rate dynamically across training: starting from a small value, rising linearly during warmup, and then decaying smoothly according to a cosine function relative to the total number of epochs. 
+To accelerate convergence and improve generalization, we employed a cosine annealing learning rate schedule with a linear warm-up phase of 5 epochs. This strategy adjusts the learning rate dynamically across training: starting from a small value, rising linearly during warm-up, and then decaying smoothly according to a cosine function relative to the total number of epochs. 
 
 The cosine function used ,inspired by \cite{loshchilov2016sgdr} : 
 
@@ -326,7 +318,9 @@ where:
 
 Cosine learning rate schedules have been widely adopted in modern image classification models such as ResNet, DenseNet, and MobileNet, and are considered state-of-the-art for datasets like CIFAR-10 and CIFAR-100~\cite{lewkowycz2021decay}. Studies show that cosine decay leads to faster convergence and slightly improved final accuracy compared to traditional step-based schedules.
 
-As illustrated in Figure~\ref{fig:val_accuracy_diff_epochs}, for the TakuNet model, increasing the number of training epochs beyond 10 does not significantly improve validation accuracy, given the Learning Rate Scheduling technique used. This saturation effect aligns with the theoretical behavior of cosine decay: once the learning rate approaches zero, further updates become minimal. Given that each epoch takes approximately one minute to complete, it is computationally efficient to limit training to around 10 epochs—achieving nearly optimal results in a fraction of the training time and is sufficient to be able to compare models.
+As illustrated in Figure~\ref{fig:val_accuracy_diff_epochs}, for a TakuNet model, increasing the number of training epochs does not significantly improve validation accuracy, given the Learning Rate Scheduling technique used. This saturation effect aligns with the theoretical behavior of cosine decay: once the learning rate approaches zero, further updates become minimal. Given that each epoch takes approximately one minute to complete, it is computationally efficient to limit training to around 10 epochs—achieving nearly optimal results in a fraction of the training time and is sufficient to be able to compare models.
+
+As a result, experiments where conducted to find the sweet spot of reducing the number of epochs while retaining  as low as possible the correct prediction on which model is better than the other
 
 \begin{figure}[ht]
     \centering

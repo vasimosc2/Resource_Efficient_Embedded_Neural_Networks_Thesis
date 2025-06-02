@@ -1,4 +1,28 @@
-\chapter{Methodology}
+\chapter{Methodology and Tools}
+
+
+
+
+
+\section{Hardware and Software Tools}
+
+Our methodology relies on a combination of software frameworks for machine learning and a target embedded hardware platform. We describe the tools and platforms used below.
+
+\subsection*{TensorFlow and Keras}
+
+We built and trained all neural networks using TensorFlow (version 2.18) with the Keras API. The \texttt{TakuNetModel} class is a Keras \texttt{Model} under the hood, composed of standard Keras layers such as \texttt{Conv2D}, \texttt{DepthwiseConv2D}, and \texttt{Dense}. This choice provided high-level flexibility in defining arbitrary model architectures.
+
+Training was performed on a workstation with GPU support, The GPU used in our experiments was the \textbf{Tesla V100 SXM2 32GB}.
+In addition, we used auxiliary Python libraries: \texttt{scikit-learn} for computing evaluation metrics (precision, recall, F1-score), and \texttt{pandas} for logging results. The genetic algorithm are also implemented in Python using \texttt{NumPy} and \texttt{TensorFlow}. This entire experimentation framework runs on DTU's HPC.
+
+\subsection*{TensorFlow Lite for Microcontrollers}
+
+To enable deployment of models trained on a PC to resource-constrained microcontrollers, we utilized TensorFlow Lite. Specifically, trained models were first converted to the TensorFlow Lite FlatBuffer format and then deployed using TensorFlow Lite for Microcontrollers (TFLite Micro).
+
+TFLite Micro is a highly optimized inference engine tailored for memory-limited embedded systems. It supports only a subset of TensorFlow operations, which guided our model design to include only operators compatible with this runtime.
+
+For the target hardware platform, we selected the \textbf{Arduino Nano 33 BLE Sense}, one of the most widely used microcontrollers for embedded machine learning applications. A detailed description of the deployment procedure, along with the specific constraints of the device, is provided in the \hyperref[chap:DeploymentEnvironment]{relevant chapter}.
+
 
 \section{System Architecture}
 
@@ -8,28 +32,32 @@ The overall system is designed to automatically search for a resource-efficient 
     \item Defining a flexible model architecture and search space,
     \item Training and evaluating candidate models (including profiling their resource usage),
     \item An evolutionary search loop (Neural Architecture Search) driven by a genetic algorithm with a surrogate model, and
-    \item Model export and deployment to the embedded device.
+    \item Modify the model accordingly to be eligible to deployed in the microcontroller.
+    \item Deploy the model
 \end{enumerate}
 
-Each stage is described below.
+Each stage is described below and will be explained in specific chapter.
 
-\begin{figure}[ht]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.6\linewidth]{Pictures/Architegture.png}
+    \includegraphics[width=0.6\linewidth]{Pictures/Architecture.png}
     \caption{Architectural pipeline}
     \label{fig:architectural_pipeline}
 \end{figure}
 
-\subsection*{Model Creation}
-
-We developed a custom model class \texttt{TakuNetModel} that can construct CNNs from a set of architecture parameters. These parameters (drawn from a predefined search space) define the network’s configuration (e.g., number of layers, kernel sizes etc.). The model is assembled modularly: an initial stem block processes the input, followed by a sequence of repeated stage blocks, and ending with a refiner block that produces the final classification output.
-
-This design allows different architectures to be instantiated by simply varying a configuration dictionary. More about this architecture and the reason it is selected will be explained in the \hyperref[chap:Architecture]{relevant chapter}.
 
 
-\subsection*{Training and Evaluation}
 
 
+\subsection{Define Model Architecture and Search Space}
+
+We developed a custom model class, \texttt{TakuNetModel}, capable of constructing convolutional neural networks (CNNs) based on a set of architectural parameters. These parameters, sampled from a predefined search space, determine the network's configuration, such as the number of layers, kernel sizes, and other key design choices. The model is assembled in a modular fashion: an initial stem block processes the input, followed by a sequence of repeated stage blocks, and concluding with a refiner block that generates the final classification output. A detailed explanation of each layer is provided in \hyperref[chap:Architecture]{Chapter 5}.
+
+All configurable parameters that define the architecture are stored in a \texttt{.json} file, which represents the \textbf{search space} for our algorithm.
+
+
+
+\subsection{Training and Evaluation models}
 
 The training and evaluation phase is a critical part of the overall pipeline, responsible for assessing the performance and efficiency of each candidate CNN architecture generated during the Neural Architecture Search (NAS) process. The primary goal is to determine how well each model performs not only in terms of classification accuracy, but also in terms of its resource consumption, making it suitable for deployment on resource-constrained microcontrollers.
 
@@ -47,7 +75,7 @@ The training and evaluation phase is a critical part of the overall pipeline, re
 The dataset is challenging due to its high number of classes and imbalanced class distribution, which increases the importance of using evaluation metrics beyond just accuracy.
 
     \item \textbf{Model Training}
-    Each candidate architecture is trained from scratch using TensorFlow 2.18.0, with GPU acceleration enabled where available. The training pipeline includes the following steps:
+    Each candidate's architecture is trained from scratch using TensorFlow 2.18.0, with GPU acceleration enabled where available. The training pipeline includes the following steps:
     
 \begin{itemize}
     \item \textbf{Initialization:} Models are initialized and built dynamically based on sampled architecture parameters from the search space.
@@ -95,11 +123,90 @@ The output of this phase—accuracy metrics and resource profiles—is fed into 
 \end{enumerate}
 
 
+\subsection{Prepare Model for Embedded Device}
+
+After completing the training procedure, preparing the model for deployment on a microcontroller involves two key steps: converting the trained model into a lightweight, quantized format, and then transforming it into a format compatible with the embedded environment (in this case, an Arduino-based system).
+
+\subsubsection*{Step 1: Convert to TFLite Format with Full Integer Quantization}
+
+The first step is to convert the trained TensorFlow/Keras model into the TensorFlow Lite format using full integer quantization. This significantly reduces the model size and ensures compatibility with TensorFlow Lite for Microcontrollers (TFLite Micro), an inference engine optimized for resource-constrained devices \cite{jacob2018quantization}.
+
+The conversion is performed using the \texttt{TFLiteConverter} API from TensorFlow, following the steps below:
+
+\begin{itemize}
+
+    \item \textbf{Quantization Optimization:}  The converter is configured with \begin{equation}
+    \text{converter.optimizations} = [\text{tf.lite.Optimize.DEFAULT}]
+    \end{equation}
+    enabling post-training quantization for improved memory efficiency.\cite{tensorflow_quantization}
+    
+    
+    \item \textbf{Representative Dataset:}  
+    A representative dataset is provided via a generator function. This small sample of training data allows TensorFlow to calibrate the dynamic range of activations and calculate appropriate scaling factors and zero points.\cite{tensorflow_representativedataset}
+
+    \item \textbf{Integer Quantization Configuration:}  
+    To ensure full compatibility with microcontroller inference engines, the following configurations are applied:
+    
+    \begin{itemize}
+        \item The converter is restricted to fully integer quantized operations by setting:
+        \begin{equation}
+            \texttt{converter.target\_spec.supported\_ops} = [\texttt{tf.lite.OpsSet.TFLITE\_BUILTINS\_INT8}]
+        \end{equation}
+        This ensures that only 8-bit integer kernels are used during inference.
+    
+        \item The input and output tensor types are explicitly defined as:
+        \[
+            \texttt{converter.inference\_input\_type} = \texttt{tf.uint8}, \quad
+            \texttt{converter.inference\_output\_type} = \texttt{tf.uint8}
+        \]
+        This specifies that the model will use unsigned 8-bit integers for both input and output at runtime.
+    \end{itemize}
+
+    \item \textbf{Model Export:}  
+    The resulting \texttt{.tflite} model is written to disk, ready for further processing.
+\end{itemize}
+
+\subsubsection*{Step 2: Convert TFLite Model to C Header for Arduino Deployment}
+
+Once the \texttt{.tflite} model is created, it must be embedded into the Arduino environment. Since microcontrollers do not have traditional file systems, the binary model must be compiled directly into the firmware. To achieve this, we developed a utility that converts the TFLite model into a C-style byte array stored in a \texttt{.h} header file.
+
+The Python code below reads the binary TFLite file, converts it into a comma-separated array of hexadecimal bytes, and wraps it into a C header file with appropriate guards and variable declarations:
+
+\begin{lstlisting}[language=Python, caption={Convert a TFLite model to a C header array for Arduino deployment}, label=lst:tflite_to_c_array]
+# Convert tflite model to C array for Arduino
+with open(f"{self.model_name}.tflite", "rb") as f:
+    tflite_bytes = f.read()
+c_array = ", ".join(f"0x{b:02x}" for b in tflite_bytes)
+model_length = len(tflite_bytes)
+header_content = (
+    f"#ifndef {self.model_name.upper()}_H\n#define {self.model_name.upper()}_H\n\n"
+    f"const unsigned char {self.model_name}_data[{model_length}] = {\n    {c_array}\n}};\n"
+    f"const unsigned int {self.model_name}_length = {model_length};\n\n#endif"
+)
+with open(f"{self.model_name}.h", "w") as header_file:
+    header_file.write(header_content)
+\end{lstlisting}
+
+This header file defines two symbols:
+\begin{itemize}
+    \item \texttt{\textit{<model\_name>}\_data}: an array containing the raw model bytes.
+    \item \texttt{\textit{<model\_name>}\_length}: an integer representing the size of the model in bytes.
+\end{itemize}
+
+The resulting header can then be included in the Arduino project source code, allowing the microcontroller to access and run the model at inference time. This process completes the model preparation pipeline, bridging the gap from high-level training to low-level embedded deployment.
 
 
-\subsection{NAS Evolutionary Loop}
+\subsection{Deploy the Model}
 
-To automate the discovery of high-performing neural network architectures, we use a \textbf{genetic algorithm} — a technique inspired by the process of natural selection. This approach allows us to explore a large space of possible model architectures without manually designing each one.
+After completing the above-mentioned procedure, the Keras model has been successfully transformed into a format compatible with the target microcontroller. The final step involves deploying this model onto the device.
+
+We achieve this by integrating the generated \texttt{.h} header file containing the TFLite model into an Arduino sketch. This sketch, described in detail in \hyperref[sec:DeploymentProcess]{Section~\ref*{sec:DeploymentProcess}}, handles model loading, input preprocessing, inference, and output interpretation. Through this deployment pipeline, we are able to perform on-device evaluation and validate the model's performance under real hardware constraints.
+
+
+
+\subsection{NAS Evolutionary Search}
+
+To automate the discovery of high-performing neural network architectures, we use a \textbf{genetic algorithm} — a technique inspired by the process of natural selection. This approach allows us to explore a large space of possible model architectures without manually designing each one \cite{real2019regularized}.
 
 The process is organized around a population of candidate models, which evolves over time. The goal is to \textbf{optimize a fitness function} that takes into account both the model’s \textbf{accuracy} and its \textbf{resource usage} (such as memory, number of parameters, or inference time).
 Here is a breakdown of how this process works:
@@ -143,58 +250,6 @@ In each generation, the population is updated through three main steps:
   
 \textbf{Termination Strategy and Output}
 
-The NAS process is executed for a fixed duration of 5 hours. During this time, all trained models are collected and stored for further analysis. At the end of the search, the algorithm returns the final \textit{Pareto front}, which includes all non-dominated architectures that offer optimal trade-offs between competing objectives—such as accuracy, memory usage, and flash size. These Pareto-optimal models represent the best candidates discovered within the given time budget.
+The NAS process is executed for a fixed duration of specific hours. During this time, all trained models are collected and stored for further analysis. At the end of the search, the algorithm returns the final \textit{Pareto front}, which includes all non-dominated architectures that offer optimal trade-offs between competing objectives—such as accuracy, memory usage, and flash size. These Pareto-optimal models represent the best candidates discovered within the given time budget.
 
 This evolutionary process allows us to discover well-balanced and efficient neural architectures without manual trial and error. It is especially useful in scenarios where both performance and efficiency are critical.
-
-
-
-
-\section{Hardware and Software Tools}
-
-Our methodology relies on a combination of software frameworks for machine learning and a target embedded hardware platform. We describe the tools and platforms used below.
-
-\subsection*{TensorFlow and Keras}
-
-We built and trained all neural networks using TensorFlow (version 2.x) with the Keras API. The \texttt{TakuNetModel} class is a Keras \texttt{Model} under the hood, composed of standard Keras layers such as \texttt{Conv2D}, \texttt{DepthwiseConv2D}, and \texttt{Dense}. This choice provided high-level flexibility in defining arbitrary model architectures.
-
-Training was performed on a workstation with GPU support, The GPU used in our experiments was the \textbf{Tesla V100 SXM2 32GB}.
-In addition, we used auxiliary Python libraries: \texttt{scikit-learn} for computing evaluation metrics (precision, recall, F1-score), and \texttt{pandas} for logging results. The genetic algorithm are also implemented in Python using \texttt{NumPy} and \texttt{TensorFlow}. This entire experimentation framework runs offline on a PC.
-
-\subsection*{TensorFlow Lite for Microcontrollers}
-
-To bridge the gap between PC-trained models and deployment on a microcontroller, we used TensorFlow Lite. Specifically, trained models were converted to the TensorFlow Lite FlatBuffer format, and then deployed using TensorFlow Lite for Microcontrollers (TFLite Micro).
-
-TFLite Micro is a lightweight inference engine designed for memory-limited devices. It supports a subset of TensorFlow operators, which influenced our model design to use only supported ops. After training a model in Keras, we used the TFLite converter to produce a quantized \texttt{.tflite} model.
-
-We then developed a utility to convert this binary model into a C array stored in a \texttt{.h} header file. The following Python code illustrates this process:
-
-\begin{lstlisting}[language=Python, caption={Convert a TFLite model to a C header array for Arduino deployment}, label=lst:tflite_to_c_array]
-# Convert tflite model to C array for Arduino
-with open(f"{self.model_name}.tflite", "rb") as f:
-    tflite_bytes = f.read()
-c_array = ", ".join(f"0x{b:02x}" for b in tflite_bytes)
-model_length = len(tflite_bytes)
-header_content = (
-    f"#ifndef {self.model_name.upper()}_H\n#define {self.model_name.upper()}_H\n\n"
-    f"const unsigned char {self.model_name}_data[{model_length}] = {\n    {c_array}\n}};\n"
-    f"const unsigned int {self.model_name}_length = {model_length};\n\n#endif"
-)
-with open(f"{self.model_name}.h", "w") as header_file:
-    header_file.write(header_content)
-\end{lstlisting}
-
-This header defines two symbols: an array of bytes with the model data, and a variable with its length. This header is then included in the Arduino project.
-
-On the Arduino side, we use the official TensorFlow Lite Micro library (available through the Arduino Library Manager). The process involves:
-
-\begin{itemize}
-    \item Allocating a memory arena (an array of bytes) for use by the TFLite Micro runtime.
-    \item Initializing the model interpreter with the model data and memory arena.
-    \item Invoking inference on new input data using the interpreter.
-\end{itemize}
-
-
-As a targeted Hardware environment we choose \textbf{Arduino Nano 33 BLE Sense}. More on about the procedure of the deployment will be explain in the  \hyperref[chap:DeploymentEnvironment]{relevant chapter}.
-
-

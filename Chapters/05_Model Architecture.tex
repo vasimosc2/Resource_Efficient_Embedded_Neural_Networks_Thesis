@@ -138,8 +138,13 @@ If the input channels cannot be evenly divided, the block falls back to a standa
 The \texttt{DownSampler} block contains the following layers, in order:
 
 \begin{itemize}
-  \item \textbf{Grouped Pointwise Convolution} (\(1 \times 1\)): performs efficient channel-wise transformations.
-  \TODO{Maybe add the above information to the Grouped Poinwise Convolution}
+
+    \item \textbf{Grouped Pointwise Convolution} (\(1 \times 1\)): This layer is designed to be both efficient and flexible. Instead of connecting every input channel to every output channel (as in a standard pointwise convolution), the channels are split into smaller groups. The convolution is then applied separately within each group. This reduces the number of computations and parameters, making it faster and more suitable for embedded devices.
+    
+    The number of groups is chosen automatically based on the number of input/output channels and the network's depth, aiming to maintain a good trade-off between performance and efficiency.
+    
+    If the input channels can't be evenly split into groups, the layer simply switches to a regular pointwise convolution (i.e., without groups), so the model always works correctly regardless of the input size.
+  
   \item \textbf{Normalization Block}
   
   \item \textbf{Pooling Layer}:

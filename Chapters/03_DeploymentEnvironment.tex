@@ -31,11 +31,24 @@ The Arduino Nano 33 BLE Sense is a compact, low-power board designed for embedde
 \item \textbf{Power Consumption:} Extremely low, suitable for battery-powered deployments
 \end{itemize}
 
-These hardware constraints require strict limits on model size, memory usage during inference, and computational complexity.
+Due to these hardware constraints, deploying deep learning models on this device requires careful optimization of memory usage and computational complexity. 
+
+The model itself—meaning the weights and the compiled operations—is stored in the non-volatile \textbf{Flash memory}. Therefore, the total model size must not exceed the available 1 MB of Flash. In contrast, \textbf{RAM} is volatile and used at runtime to store intermediate tensors, activations, input/output buffers, and temporary computation data. During inference, a structure known as the \texttt{tensor arena} is allocated in RAM to support these operations. This arena must be statically pre-allocated and sized conservatively to avoid memory allocation failures, while still allowing the model to run effectively.
+
+Understanding the difference between these two memory types is crucial:
+\begin{itemize}
+\item \textbf{Flash memory} retains data after power-off and is used to store the model and program code.
+\item \textbf{RAM} is cleared on reboot and is used dynamically during inference for data processing.
+\end{itemize}
+
+Given the limited 256 KB of RAM, a large portion must be reserved for the tensor arena. This requires balancing model complexity with available runtime memory. Optimizing both Flash and RAM usage is essential to ensure the model fits within the constraints of the device and executes reliably.
+
 
 \section{Deployment Process}
+\label{sec:DeploymentProcess}
+To deploy the quantized TensorFlow Lite (TFLite) model on the Arduino Nano 33 BLE Sense, a C++ sketch is written in the \texttt{Arduino IDE}. This sketch integrates TensorFlow Lite for Microcontrollers (TFLM) and includes logic to load the model, allocate memory, run inference, and output results. 
 
-To deploy the quantized TensorFlow Lite (TFLite) model on the Arduino Nano 33 BLE Sense, a C++ sketch is written in the \texttt{Arduino IDE}. This sketch integrates TensorFlow Lite for Microcontrollers (TFLM) and includes logic to load the model, allocate memory, run inference, and output results. The critical components of this deployment are:
+The critical components of this deployment are:
 
 \begin{itemize}
     \item \textbf{Tensor Arena:} 
@@ -43,14 +56,22 @@ To deploy the quantized TensorFlow Lite (TFLite) model on the Arduino Nano 33 BL
     
     Determining the exact memory requirements of the tensor arena in advance is not possible, as it depends on the model architecture and runtime behavior. A practical approach is to consider the available RAM on the microcontroller, subtract the expected system and runtime overhead (will be explained below), and dedicate the remaining memory to the tensor arena. When the device is solely dedicated to model inference, maximizing the tensor arena size enables deployment of more complex models while avoiding allocation failures at runtime.
 
-    \item \textbf{Operation Resolver:} 
-    The \texttt{OpResolver} acts as a lookup table that connects the abstract operations defined in the model—such as \texttt{CONV\_2D}, \texttt{RELU}, or \texttt{SOFTMAX}—to their actual executable code. These are not just labels: each operation must be translated into machine-efficient instructions that the microcontroller can run.
+    In addition, estimating the required tensor arena size—which is always less than the total available RAM of the microcontroller—helps us determine the memory threshold when designing a model for deployment.
+
+  \item \textbf{Operation Resolver:} 
+    {\sloppy
+    The \texttt{OpResolver} serves as a mapping mechanism that links high-level operations defined in the model—such as \texttt{CONV\_2D}, \texttt{RELU}, or \texttt{SOFTMAX}—to their corresponding low-level implementations. These implementations are typically optimized C or assembly routines (e.g., CMSIS-NN kernels) that execute efficiently on ARM Cortex-M processors by leveraging hardware-specific instructions and memory access patterns.
+    \par}
+
 
     This is where low-level implementations come in. They are the concrete functions (often hand-optimized in C or assembly) that perform the mathematical computations of each operation. For instance, the high-level \texttt{CONV\_2D} operation gets mapped to a specific optimized kernel like \texttt{arm\_depthwise\_conv\_opt} from the CMSIS-NN library. These kernels are tailored to run efficiently on ARM Cortex-M processors by leveraging hardware-specific instructions and memory access patterns.
 
-    
-    In our deployment, in order to avoid the additional Flash consumption by using, \texttt{tflite::AllOpsResolver}, which includes support for all available operators, we used the specific operations needed for the layers of our model by  utilizing the  \texttt{MicroMutableOpResolver} that only registers the specific operations used by the model. This modular architecture ensures flexibility and efficient resource usage on memory-constrained microcontrollers.
+    All operation implementations are stored in the Flash memory of the microcontroller. Therefore, it is essential to include only the operations that are strictly necessary for inference, in order to avoid additional Flash memory overhead.
 
+    In our deployment, rather than using tflite::AllOpsResolver—which registers support for all available operators and unnecessarily increases Flash usage—we opted for MicroMutableOpResolver. This allows us to explicitly register only the operations required by our model. This modular approach provides flexibility and enables efficient utilization of memory, which is especially important on resource-constrained microcontrollers
+
+    \clearpage
+    
     \item \textbf{Model Data (.h File):} 
     The model data represents a fully quantized neural network in the TensorFlow Lite format. It encapsulates all the essential components of the model, including its architecture (layers and operations), weights, biases, and quantization parameters such as scale factors and zero points. These values are organized in a flat binary format and embedded in the sketch as a constant C array stored in Flash memory.
     
@@ -59,7 +80,7 @@ To deploy the quantized TensorFlow Lite (TFLite) model on the Arduino Nano 33 BL
     \item \textbf{Interpreter:} 
     The \texttt{tflite::MicroInterpreter} is the central inference engine responsible for executing the model on the microcontroller. It manages the parsing of the model structure, handles memory for all tensors, and coordinates the execution flow of operations layer by layer. It is initialized with four key inputs: the model, an operation resolver, a pre-allocated tensor arena, and the arena size.
     
-    Before inference can begin, the interpreter must call \texttt{AllocateTensors()}, which analyzes the model graph and allocates memory for all input, output, and intermediate tensors within the arena. Once tensors are prepared and inputs are loaded, inference is triggered by calling \texttt{Invoke()}, which executes each layer in sequence and writes the final predictions to the output tensor.
+    Before inference can begin, the interpreter must call \texttt{AllocateTensors()}, which analyzes the model architecture and allocates memory for all input, output, and intermediate tensors within the arena. Once tensors are prepared and inputs are loaded, inference is triggered by calling \texttt{Invoke()}, which executes each layer in sequence and writes the final predictions to the output tensor.
     
 
     \item \textbf{Input Data:} 
@@ -71,71 +92,22 @@ To deploy the quantized TensorFlow Lite (TFLite) model on the Arduino Nano 33 BL
 
 This C++ logic bridges the trained model and the embedded runtime, enabling low-power, real-time inference directly on the microcontroller without cloud connectivity or additional hardware support. The modularity of the setup allows easy substitution of input sources or model variants, making it ideal for rapid prototyping and benchmarking.
 
-
-
-
-
-\section{TFLite Model Deployment}
-
-To run deep learning models on Arduino, the models must be converted to a quantized \textbf{TensorFlow Lite (TFLite)} format. This process involves:
-
-\begin{enumerate}
-\item Training a Keras model with float32 precision.
-\item Converting it to TFLite using \texttt{TFLiteConverter}.
-\item Performing \textbf{full integer quantization} to reduce memory usage.
-\item Exporting the model as a \textbf{C array} using a custom script.
-\end{enumerate}
-
-Once converted, the model is compiled and flashed onto the Arduino using the \texttt{Arduino IDE} or \texttt{Arduino CLI}, along with the \texttt{TensorFlow Lite for Microcontrollers} library.
-
-
-
-
-\clearpage
-
-
-\subsection{TensorFlow to TFLite Conversion with Full Integer Quantization}
-
-To deploy a neural network on a microcontroller, the model must be converted from the standard TensorFlow format (typically a \texttt{.h5} or Keras model object) to the lightweight and hardware-efficient TensorFlow Lite format (\texttt{.tflite}). The following function performs this conversion with full integer quantization, which is necessary for compatibility with most embedded devices, including the Arduino Nano 33 BLE Sense.
-
-\begin{itemize}
-    \item \textbf{Model Loading:} The function begins by creating a \texttt{TFLiteConverter} object using \texttt{tf.lite.TFLiteConverter.from\_keras\_model(self.model)}. This loads the trained Keras model into the converter, preparing it for transformation into the TFLite format.
-
-    \item \textbf{Quantization Optimization:} 
-    The converter is configured with \texttt{converter.optimizations = [tf.lite.Optimize.DEFAULT]}, enabling automatic quantization optimizations. This directive instructs TensorFlow to attempt to reduce the model’s size and improve efficiency, making it more suitable for deployment on low-resource devices.\cite{tensorflow_quantization}
-
-    \item \textbf{Representative Dataset:} 
-    To perform effective quantization, TensorFlow Lite requires a small dataset that is representative of the model’s expected input distribution. This is provided via a generator function \texttt{representative\_dataset()}, which yields a batch of training samples cast to \texttt{float32}. This data is used internally during the quantization process to calibrate the scale and zero-point values for each tensor. \cite{tensorflow_quantization} \cite{tensorflow_representativedataset}
-
-    \item \textbf{Integer Quantization Configuration:}
-    For microcontroller compatibility and to save memory, full integer quantization is applyed:
-    \begin{itemize}
-        \item \texttt{converter.target\_spec.supported\_ops} is set to
-        \newline
-        \texttt{[tf.lite.OpsSet.TFLITE\_BUILTINS\_INT8]},
-        \newline
-         ensuring all operations use 8-bit (1 byte) integer arithmetic.
-        \item \texttt{converter.inference\_input\_type} and \texttt{converter.inference\_output\_type} are set to \texttt{tf.uint8}, specifying the use of unsigned 8-bit integers at runtime.
-    \end{itemize}
-
-\end{itemize}
-
-This process results in a highly efficient, fully quantized TFLite model that is compatible with TensorFlow Lite for Microcontrollers (TFLM) and suitable for deployment on devices with limited computational and memory resources. \cite{jacob2018quantization}
-
-
-
-
-
-
-
 \section{Evaluation on Device}
 
 Once deployed, the TFLite model is evaluated directly on the Arduino to assess:
 
 \begin{itemize}
+
 \item \textbf{Inference Latency:} Time required for a single prediction.
-\item \textbf{RAM \& Flash Usage:} Ensuring the model fits within 256 KB RAM and 1 MB Flash.
+
+\item \textbf{RAM \& Flash Usage:} Ensuring the model fits within RAM and Flash constrains.
+
+\item \textbf{Prediction:} We also verify that the model correctly predicts the given input image, even though the accuracy of the quantized TFLite model has already been evaluated in the development environment.
+
+\item \TODO{Current:}
+
 
 \end{itemize}
 
 Testing was performed using real inputs and logs captured via serial communication to measure performance.
+
