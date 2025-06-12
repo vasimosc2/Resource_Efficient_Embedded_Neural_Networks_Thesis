@@ -1,0 +1,29 @@
+\chapter{Thesis Structure}
+\label{chap:ThesisStructure}
+
+This thesis presents a series of optimization strategies aimed at accelerating Neural Architecture Search (NAS) in the context of resource-constrained deployment. While the proposed methods are evaluated using the TakuNet architecture and the Arduino Nano BLE 33 microcontroller, these choices serve solely as proof-of-concept. The optimizations are not specific to this platform or architecture—they are designed to be generalizable and adaptable. However, they are platform-aware: they rely on knowledge of key hardware characteristics such as available RAM and Flash memory, but do not depend on any particular microcontroller or neural network design.
+
+The primary objective of this work is to reduce the time and computational effort required to evaluate and select high-performing models, without sacrificing model quality. To this end, we introduce and assess the following optimization techniques:
+
+
+\begin{itemize}
+    \item \textbf{Memory Estimation}: A fast and lightweight method to estimate RAM and Flash memory usage before deployment.
+    \item \textbf{RankNet Model Estimation}: A predictive ranking model used to estimate the relative performance of candidate architectures without training.
+    \item \textbf{Learning Rate Optimization}: A strategy to adapt learning rates during training for better convergence and generalization.
+    \item \textbf{Performance-Based Stoppage}: A mechanism that stops training early based on performance thresholds to avoid unnecessary computation.
+    \item \textbf{Early Stopping Optimization}: An improved stopping criterion that prevents overfitting while reducing training time.
+\end{itemize}
+
+To guide the reader through the thesis:
+
+\begin{itemize}
+    \item In Chapters~\ref{chap:DeploymentEnvironment} and~\ref{chap:Architecture}, we describe the deployment platform and architecture used as a case study. These chapters justify our design choices and establish the baseline for applying the proposed optimizations.
+    
+    \item Chapter~\ref{chap:Methodology} presents the methodology, tools, and frameworks used to develop and evaluate our approach.
+    
+    \item Chapters~\ref{chap:nas_optimizations} and~\ref{chap:performance_analysis} introduce each optimization in detail, including their implementation and quantitative impact on NAS performance and efficiency.
+\end{itemize}
+
+It is important to emphasize that the use of TakuNet and the Arduino Nano BLE 33 are only used as an example of usage. The methods proposed throughout this thesis are generalizable and can be adapted to various microcontrollers and neural architectures.
+
+This chapter sets the stage for the rest of the thesis by outlining the problem space, introducing the core contributions, and preparing the reader for the detailed discussions that follow.

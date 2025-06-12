@@ -51,12 +51,15 @@ To deploy the quantized TensorFlow Lite (TFLite) model on the Arduino Nano 33 BL
 The critical components of this deployment are:
 
 \begin{itemize}
-    \item \textbf{Tensor Arena:} 
-    A statically allocated memory buffer used by the TFLM runtime to manage all intermediate tensors required during inference, including activations, input / output buffers, and temporary layer-specific data. Unlike dynamic memory allocation, which is often unsupported or discouraged in embedded systems, the tensor arena must be pre-allocated at compile time and aligned (typically to 16 bytes) to meet the performance requirements of CMSIS-NN kernels.
+    \item \textbf{Tensor Arena:}  
+    A statically allocated memory buffer used by the TensorFlow Lite for Microcontrollers (TFLM) runtime to manage all intermediate tensors during inference. This includes activations, input/output buffers, and temporary layer-specific data. Unlike dynamic memory allocation, which is often unsupported or discouraged in embedded environments, the tensor arena must be pre-allocated at compile time and aligned (typically to 16 bytes) to meet the performance and alignment requirements of CMSIS-NN kernels.
     
-    Determining the exact memory requirements of the tensor arena in advance is not possible, as it depends on the model architecture and runtime behavior. A practical approach is to consider the available RAM on the microcontroller, subtract the expected system and runtime overhead (will be explained below), and dedicate the remaining memory to the tensor arena. When the device is solely dedicated to model inference, maximizing the tensor arena size enables deployment of more complex models while avoiding allocation failures at runtime.
+    The exact memory requirements of the tensor arena cannot be determined analytically in advance, as they depend on both the model architecture and runtime tensor operations. A practical approach is to first determine the total available RAM on the microcontroller, subtract any system and runtime overhead (explained later), and allocate the remaining memory to the tensor arena. When the device is dedicated solely to running the model, maximizing the tensor arena size allows for the deployment of more complex architectures while avoiding runtime allocation failures.
+    
+    In our experiments, the tensor arena was allocated using the **maximum available RAM** of the Arduino Nano BLE 33, after accounting for system overhead. This ensured that the largest possible memory space was reserved for model inference, enabling the evaluation of more expressive candidate architectures during the NAS process.
 
-    In addition, estimating the required tensor arena size—which is always less than the total available RAM of the microcontroller—helps us determine the memory threshold when designing a model for deployment.
+    If a model requires more memory than what the tensor arena can provide—due to its size or internal tensor complexity—the deployment will fail at runtime with an allocation error. Specifically, the TFLM runtime will be unable to initialize necessary buffers, resulting in execution failure or a hard fault. This makes it critical to accurately estimate memory requirements during the NAS process and discard models that exceed the deployable memory threshold before attempting deployment.
+    
 
   \item \textbf{Operation Resolver:} 
     {\sloppy
@@ -69,8 +72,6 @@ The critical components of this deployment are:
     All operation implementations are stored in the Flash memory of the microcontroller. Therefore, it is essential to include only the operations that are strictly necessary for inference, in order to avoid additional Flash memory overhead.
 
     In our deployment, rather than using tflite::AllOpsResolver—which registers support for all available operators and unnecessarily increases Flash usage—we opted for MicroMutableOpResolver. This allows us to explicitly register only the operations required by our model. This modular approach provides flexibility and enables efficient utilization of memory, which is especially important on resource-constrained microcontrollers
-
-    \clearpage
     
     \item \textbf{Model Data (.h File):} 
     The model data represents a fully quantized neural network in the TensorFlow Lite format. It encapsulates all the essential components of the model, including its architecture (layers and operations), weights, biases, and quantization parameters such as scale factors and zero points. These values are organized in a flat binary format and embedded in the sketch as a constant C array stored in Flash memory.
@@ -84,10 +85,46 @@ The critical components of this deployment are:
     
 
     \item \textbf{Input Data:} 
-    Instead of reading from sensors, the sketch uses a predefined test image from \texttt{image\_data.h}. The pixel values are assumed to be quantized and directly compatible with the model's input requirements. These are copied into the input tensor buffer obtained from \texttt{interpreter.input(0)}.
+    Instead of acquiring real-time data from sensors, the deployment sketch uses a predefined test image included in the source file \texttt{image\_data.h}. This image is typically represented as a \texttt{const uint8\_t[]} array, and it is embedded into the binary at compile time. As a result, it is stored in the device’s non-volatile Flash memory.
+    
+    At runtime, the pixel values from this array—already quantized and formatted to match the model’s input requirements (e.g., shape, datatype, and scale)—are copied into the input tensor buffer obtained from \texttt{interpreter.input(0)}. This buffer is part of the tensor arena, which resides in RAM. The copying is performed explicitly in a loop or via a call to \texttt{memcpy}, for example:
+    
+    \begin{lstlisting}[language=C, caption={Copying input image data from Flash to RAM input tensor}, label=lst:copy_input_tensor]
+    for (int i = 0; i < 3072; i++) {
+        input->data.uint8[i] = IMAGE_NAME[i];
+    }
+    \end{lstlisting}
+
+    
+    This means that although the test image consumes no RAM while stored in Flash, it does occupy RAM during inference. Specifically, the input tensor consumes a portion of the tensor arena, which also holds all intermediate activations, output tensors, and temporary buffers required by the model. For example, a \(32 \times 32 \times 3\) image with 8-bit quantization requires exactly 3,072 bytes of RAM during inference.
+    
+    This memory footprint must be considered when allocating the tensor arena. If the input tensor, combined with the rest of the model’s memory requirements, exceeds the available RAM, the inference will fail due to insufficient space. Therefore, even for a predefined input, its RAM usage at runtime directly affects deployment feasibility on memory-constrained microcontrollers.
+
 
     \item \textbf{Inference Execution:} 
-    After tensor allocation, the interpreter runs inference using \texttt{interpreter.Invoke()}. The output tensor (obtained via \texttt{interpreter.output(0)}) contains class probabilities or scores. In this sketch, the result is printed to the serial monitor using \texttt{Serial.println()}.
+    Once the input data has been copied into the input tensor and memory has been allocated via \texttt{AllocateTensors()}, the interpreter executes the model by calling \texttt{interpreter.Invoke()}. This function runs the full inference pipeline, layer by layer, using the model loaded in memory and the pre-allocated tensor arena.
+    
+    After inference, the result is stored in the output tensor, which can be accessed using \texttt{interpreter.output(0)}. This tensor typically contains the model’s predicted output, such as class probabilities or regression values, depending on the task. In this sketch, the output is assumed to represent a probability distribution over classes. The values are read from the output tensor and printed to the serial monitor using \texttt{Serial.print()} and \texttt{Serial.println()} for inspection. This setup allows the user to verify model predictions on the predefined test input without requiring any external output hardware.
+    
+    \clearpage
+    
+    \begin{lstlisting}[language=C, caption={Running inference and printing the result to the serial monitor}, label=lst:run_inference_print_output]
+    if (interpreter.Invoke() != kTfLiteOk) {
+        Serial.println("Inference failed!");
+        return;
+    }
+    
+    // Access output tensor
+    TfLiteTensor* output = interpreter.output(0);
+    for (int i = 0; i < output->dims->data[1]; i++) {
+        Serial.print("Class ");
+        Serial.print(i);
+        Serial.print(": ");
+        Serial.println(output->data.uint8[i]);
+    }
+    \end{lstlisting}
+
+    
 \end{itemize}
 
 This C++ logic bridges the trained model and the embedded runtime, enabling low-power, real-time inference directly on the microcontroller without cloud connectivity or additional hardware support. The modularity of the setup allows easy substitution of input sources or model variants, making it ideal for rapid prototyping and benchmarking.
@@ -104,7 +141,8 @@ Once deployed, the TFLite model is evaluated directly on the Arduino to assess:
 
 \item \textbf{Prediction:} We also verify that the model correctly predicts the given input image, even though the accuracy of the quantized TFLite model has already been evaluated in the development environment.
 
-\item \TODO{Current:}
+\item \textbf{Power:} The microcontroller is powered with a stable 3.3\,V supply provided by the PPK2 in source meter mode. During a single inference, the PPK2 records the current draw over time, allowing precise measurement of the power consumption and computation of the total energy used for one inference cycle.
+
 
 
 \end{itemize}

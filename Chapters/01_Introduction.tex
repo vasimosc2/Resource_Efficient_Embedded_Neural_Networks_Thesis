@@ -111,15 +111,16 @@ Memory efficiency is assessed in two dimensions:
 
 Although the focus is on efficiency, model accuracy on the CIFAR-100 dataset remains a key metric. The objective is to maintain as high accuracy as possible while minimizing model complexity. This trade-off between performance and resource usage is at the core of this thesis, and all evaluated architectures are measured for their top-1 classification accuracy on a held-out test set.
 
+\textbf{Energy Consumption}
+
+Energy efficiency is a critical concern for embedded systems. In this work, direct power measurements were successfully performed to quantify energy consumption, using appropriate tools to capture metrics such as power draw (in milliwatts) and energy usage (in joules). These measurements enabled a more rigorous evaluation of the models' efficiency on embedded hardware. Alongside these quantitative assessments, the design choices—such as minimizing model size, computation, and memory access—further contributed to reducing overall energy consumption.
+
+
 \subsection{\textbf{Limitations and Exclusions}}
 
 Certain performance aspects are acknowledged but fall outside the scope of this study due to resource or technical limitations:
 
-\paragraph{\textbf{Energy Consumption}:}
 
-While energy efficiency is a critical concern for embedded systems, direct power measurements (e.g., in milliwatts or joules) are not performed. This is due to the lack of precise measurement tools and time constraints within the thesis. However, energy usage is indirectly optimized, as reducing model size, computation, and memory access typically leads to lower power draw. Thus, the design choices made in this work still promote energy efficiency, even if not quantitatively evaluated.
-
-\TODO{NOT YET MEASURED BUT IT IS PLANNED}
 
 
 \paragraph{\textbf{On-Device Training}:}

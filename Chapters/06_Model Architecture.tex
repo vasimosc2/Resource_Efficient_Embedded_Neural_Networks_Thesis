@@ -1,6 +1,6 @@
 \chapter{Architecture}
-
 \label{chap:Architecture}
+
 This chapter presents the architectural design of the proposed model, \textbf{TakuNet}, developed to support fast and memory-efficient neural architecture search (NAS), particularly for embedded and resource-constrained environments. 
 TakuNet is a lightweight convolutional neural network originally designed for efficient real-time inference on resource-constrained platforms \cite{TakuNet}.
 The core design goal of TakuNet is to minimize the number of parameters and computational cost without significantly sacrificing accuracy.
@@ -196,7 +196,19 @@ This block acts as the final decision-making stage of the network. By combining 
 \end{figure}
 
 
-\section{Enchantments in TakuNet model}
+
+
+
+\section{Enhancements in TakuNet Model}
+
+
+While the initial versions of TakuNet achieved high training accuracy across several datasets, this performance often did not fully translate to improved test accuracy, suggesting a degree of overfitting. Overfitting occurs when a model learns to perform exceptionally well on training data but fails to generalize to unseen examples. This behavior is particularly problematic in the context of Neural Architecture Search (NAS), where architectures are selected based on validation performance, and in embedded deployment scenarios, where robustness and reliability are critical~\cite{Goodfellow-et-al-2016}.
+
+
+To address these challenges and make the architecture more robust across diverse datasets, we integrated several training-time optimization techniques into the TakuNet design. Specifically, we introduced an \textit{Adaptive Dropout} mechanism and applied \textit{Stochastic Weight Averaging (SWA)} during training. These methods are designed to reduce overfitting, improve generalization, and support convergence of the NAS algorithm toward architectures that perform reliably under real-world conditions.
+
+The remainder of this section describes each enhancement in detail, including the motivation behind its inclusion, the design decisions made, and its relevance to the deployment of resource-efficient neural networks.
+
 
 \subsection{Adaptive Dropout}
 
@@ -219,3 +231,31 @@ The Adaptive Dropout mechanism in TakuNet addresses this limitation by treating 
 
 \paragraph{Benefits.} The Adaptive Dropout mechanism improves generalization without extensive manual tuning and makes the model more robust across datasets. It also ensures that the resulting model remains compact, efficient, and deployable on resource-constrained hardware platforms.
 
+\subsection{Stochastic Weight Averaging (SWA)}
+To further increase the generalization of the model and reduce the risk of overfitting, we introduced Stochastic Weight Averaging (SWA) during the training process. SWA is a training-time optimization technique that improves the final model by averaging the weights from multiple points along the training trajectory. Rather than relying solely on the weights of the best epoch, SWA computes a simple arithmetic average of model weights collected over the course of several epochs.
+
+The motivation behind SWA lies in the geometry of the loss landscape. Traditional training methods may converge to sharp minima—regions in the weight space where small changes in input or parameters can lead to large performance fluctuations. In contrast, SWA favors solutions that lie in wider and flatter regions of the loss surface. These flatter minima are associated with better generalization, as they are less sensitive to perturbations in the data or model parameters.
+
+Mathematically, if $\theta_i$ denotes the model weights at the end of epoch $i$, and $K$ is the number of such epochs, SWA computes the averaged weights as:
+\[
+\theta_{\text{SWA}} = \frac{1}{K} \sum_{i=1}^{K} \theta_i
+\]
+
+This procedure can be seen as forming an implicit ensemble of models, but with the key advantage that it results in a single averaged model with no additional inference-time cost. This is especially relevant in the context of embedded systems, where computational and memory resources are limited. SWA delivers generalization improvements without increasing the number of parameters or the inference time, making it a highly attractive strategy for resource-constrained environments.
+
+Empirical studies~\cite{izmailov2018averaging} have shown that SWA can consistently outperform standard stochastic gradient descent (SGD) in terms of test accuracy, especially when used in conjunction with learning rate schedules such as cyclical learning rates. In our experiments, SWA was applied during the final phase of training.
+
+In most cases, the weights produced by Stochastic Weight Averaging (SWA) outperformed those of the original model in terms of validation accuracy. To ensure robustness in cases where SWA does not yield a better-performing model, we implemented a safeguard in our code: an explicit condition checks whether the SWA-averaged model achieves superior validation accuracy; if not, the model reverts to the best-performing weights obtained during standard training. This mechanism guarantees that the final model selection always reflects the optimal result. Moreover, SWA has the potential to help models reach improved performance in fewer training epochs, thereby accelerating the convergence of our Neural Architecture Search (NAS) algorithm and reducing the overall computational cost of the search process. A comparison of models before and after applying SWA is shown in Table~\ref{tab:swa_comparison}, illustrating how SWA can yield performance gains while ensuring fallback to the best result when needed.
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Model} & \textbf{Train Accuracy} & \textbf{Test Accuracy} & \textbf{SWA Accuracy} \\
+\hline
+TakuNet\_Init\_3  & 0.5965 & 0.5195 & 0.5189 \\
+TakuNet\_Init\_4  & 0.6748 & 0.5641 & 0.5727 \\
+\hline
+\end{tabular}
+\caption{Comparison of model performance before and after applying SWA}
+\label{tab:swa_comparison}
+\end{table}

@@ -1,0 +1,31 @@
+\chapter{Conclusion}
+\begin{comment}
+    This thesis presented a comprehensive framework for optimizing the black box of the Neural Architecture Search (NAS) algorithm with the primary objective of enabling the automated design of deep learning models suitable for highly constrained embedded environments, such as the Arduino Nano 33 BLE Sense.
+
+The research centered around improving a Genetic Algorithm-based NAS framework, enhanced through multiple layers of optimization: intelligent memory estimations, early-stopping strategies, and RankNet experiment.
+
+This study introduced a hardware-aware, resource-efficient NAS pipeline centered on a Genetic Algorithm (GA), carefully engineered to explore architectural variations of the TakuNet model. A key innovation was the integration of a RankNet-based surrogate model to accelerate search convergence by approximating relative model performance, thereby drastically reducing the need for full model training and evaluation during the search process.
+
+To ensure deployability, the framework included robust memory estimation, full integer quantization workflows, and real-time deployment tests. The methodology balanced inference accuracy, memory footprint, and latency, confirming that evolved architectures met the strict computational and memory limits of microcontroller-class devices. TakuNet, as the baseline architecture, proved highly effective when optimized through the NAS process, offering both structural modularity and performance scalability.
+
+Experimental results validated that the optimized NAS approach could yield high-performing, quantized models that not only rival conventional hand-crafted architectures but also fit within stringent embedded hardware constraints. The successful deployment and execution of these models on the Arduino platform underscored the practical viability of the proposed solution.
+
+In summary, this work demonstrated that through intelligent NAS optimization—particularly by combining evolutionary strategies with predictive modeling—it is possible to democratize neural architecture design for edge AI applications. The presented framework bridges the gap between AutoML research and real-world embedded deployment, paving the way for further advancements in TinyML and ultra-efficient deep learning systems.
+
+
+
+\section{Conclusion}
+\end{comment}
+
+
+This thesis presented a comprehensive and optimized framework for accelerating Neural Architecture Search (NAS) tailored for resource constrain platforms like the Arduino Nano 33 BLE Sense. The primary objective was to make the automated design of deep learning models both feasible and efficient for real-world embedded AI applications.
+
+The research centered on improving a Genetic Algorithm (GA)-based NAS system through multiple layers of optimization. Core contributions included a hardware-aware design strategy that integrates intelligent memory estimation to discard infeasible candidates early, early stopping techniques to reduce unnecessary training cycles, and the introduction of RankNet—a pairwise surrogate model used to predict relative model performance before full training. These methods collectively reduced search time and computational burden without sacrificing model quality.
+
+TakuNet, a hand-crafted baseline convolutional architecture, was employed as the foundation for the NAS process. Its modular and scalable design made it suitable for architectural evolution. Although TakuNet itself was not discovered by NAS, the optimization process effectively adapted and enhanced its performance. The framework further incorporated advanced training strategies such as cosine learning rate scheduling, early-stoppage mechanisms based on performance plateaus, and performance-aware dropout via adaptive regularization. Additionally, techniques like Stochastic Weight Averaging (SWA) were applied to further improve generalization with minimal training overhead.
+
+To ensure that evolved architectures were not only accurate but also deployable, a robust quantization and deployment pipeline was developed. Full integer quantization and memory-aware filtering ensured that only viable models were passed to deployment. Final models were tested directly on the Arduino Nano 33 BLE Sense, validating that they met tight constraints on memory, latency, and inference speed.
+
+Although deployment was not the central focus of the thesis, the successful execution of models on actual hardware highlighted the end-to-end viability of the proposed framework. It bridges the gap between AutoML research and practical embedded AI, showcasing how intelligent NAS techniques can be used to automatically generate efficient, deployable, and high-performing models for edge devices.
+
+In summary, this thesis demonstrated that by combining evolutionary search with predictive modeling and embedded-awareness, NAS can be transformed into a practical tool for TinyML. The framework balances model performance with resource constraints through a set of general, reusable techniques. This work lays the groundwork for future research in deploying NAS at the edge and serves as a reference for optimizing NAS in domains where both computational and memory budgets are extremely limited.

@@ -1,19 +1,14 @@
 \section*{Abstract}
 
-
-
 \addcontentsline{toc}{section}{Abstract}
 
+Deploying deep learning models on resource-constrained embedded platforms, such as the Arduino Nano BLE 33, requires careful trade-offs between model accuracy, memory footprint, and computational efficiency. Neural Architecture Search (NAS) has emerged as a popular approach for automatically designing lightweight and high-performing models—particularly for TinyML applications targeting microcontrollers. However, a major limitation of NAS is its high computational cost and slow search process, which makes it impractical for rapid prototyping or iterative development in embedded settings. This thesis aims to accelerate the NAS process, enabling faster discovery of efficient model architectures optimized for ultra-low-power devices like the Arduino Nano BLE 33.
 
+The proposed approach introduces TakuNet, a custom convolutional neural network (CNN) architecture optimized for efficient inference on ultra-low-power devices. To effectively explore the architectural search space, a Genetic Algorithm is employed, utilizing genetic operations such as mutation and crossover. Through detailed investigation, it was found that the majority of the NAS time is consumed during the training of candidate architectures. To mitigate this bottleneck, this thesis explores optimization techniques that aim to either reduce the training time or bypass training altogether, while still enabling the NAS algorithm to identify high-performing architectures.  
 
-Deploying deep learning models on resource-constrained embedded platforms, such as the Arduino Nano BLE 33, presents significant challenges—particularly in balancing model accuracy, memory footprint, and computational efficiency. This thesis addresses these challenges by accelerating the Neural Architecture Search (NAS) process to rapidly identify lightweight, high-performing architectures tailored for ultra-low-power devices.
+The framework also includes accurate estimation of key deployment metrics such as energy consumption, RAM usage, and Flash memory footprint, enabling reliable evaluation of candidate models on the Arduino Nano BLE 33. By providing these estimates without requiring full deployment, the framework significantly reduces the time needed to assess these metrics directly on the device. A complete model quantization workflow ensures continuous compliance with the device’s hardware constraints. In addition, efficient training strategies and dynamic resource management are implemented to maximize the number of architectures evaluated within strict time and resource budgets. 
 
-The proposed approach introduces TakuNet, a custom convolutional neural network (CNN) architecture optimized for efficient inference. To explore the architectural search space effectively, an Evolutionary Algorithm is employed, leveraging genetic operations such as mutation and crossover. To further enhance search efficiency, a RankNet-based surrogate model is integrated to predict the relative performance of candidate architectures, significantly reducing the need for exhaustive model training.
-
-The framework also includes intelligent memory estimation and a complete model quantization workflow to ensure continuous compliance with the Arduino Nano BLE 33's hardware constraints. Efficient training strategies and dynamic resource management are implemented to maximize the number of architectures evaluated within strict time and resource budgets.
-
-Final models are fully quantized and converted into C array formats for seamless deployment on the target hardware. Experimental results demonstrate that the proposed accelerated NAS methodology successfully produces high-performance models suitable for deployment in highly resource-constrained environments.
-
+Final models are fully quantized and converted into C array formats for seamless deployment on the target hardware. Experimental results demonstrate that the proposed accelerated NAS methodology successfully produces high-performance models suitable for deployment in highly resource-constrained environments. The efficiency of the model that is evaluated is the actual version that is deployed on the microcontroller, ensuring accurate performance measurements.
 
 
 

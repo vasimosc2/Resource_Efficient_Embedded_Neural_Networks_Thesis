@@ -1,0 +1,60 @@
+\chapter{Future Work}
+
+The acceleration strategies proposed in this thesis present opportunities for broader application across neural architecture search (NAS) problems and embedded AI domains. Several promising research directions can be identified to expand the impact and applicability of the presented techniques.
+
+\section{Suggested improvements}
+
+\subsection{Parallelization}
+
+The efficiency of the proposed NAS framework can be further improved by leveraging high-performance computing (HPC) resources. While this work evaluated candidate architectures sequentially on a single GPU, a natural extension is to parallelize the evaluation process across multiple GPUs or compute nodes. In modern distributed computing environments—such as multi-GPU servers or HPC clusters—a pool of GPUs can be used to train and test multiple candidate networks concurrently. This form of parallelization can drastically reduce the wall-clock time required for each generation, enabling larger search spaces or faster convergence without compromising accuracy.
+
+
+\subsection{RankNet}
+
+In this work, RankNet was trained only once using the fully evaluated models from the initial population. This design choice allowed us to reduce training overhead and maintain a stateless, single-run architecture. We observed that this one-time training step introduced negligible latency—especially in scenarios where the overall search time exceeded several hours (e.g., 5 hours or more).
+
+However, the effectiveness of RankNet can vary depending on the complexity of the search space. In simpler spaces, the initial population may provide sufficient diversity for RankNet to make accurate relative performance predictions. In more complex or higher-dimensional search spaces, additional training data might be necessary to capture the nuanced relationships between architectures. In such cases, it may be beneficial to retain evaluated models from later generations and periodically retrain RankNet to improve its predictive accuracy over time.
+
+An alternative strategy for scenarios involving multiple runs (e.g., hyperparameter tuning, repeated architecture search on similar datasets, or production environments) is to pretrain RankNet on a large, diverse set of architectures and performance results. The pretrained model can then be stored and reused in future runs, either as-is or with fine-tuning on a small subset of the current data. This can provide a warm-start for ranking, saving time while retaining adaptability.
+
+Ultimately, the optimal RankNet strategy depends on the application's constraints:
+\begin{itemize}
+    \item If \textbf{runtime is critical}, a lightweight, one-time training approach is ideal.
+    \item If \textbf{memory and storage are available} and the application requires \textbf{multiple search runs}, pretraining and reusing a RankNet model may offer improved efficiency.
+    \item If \textbf{accuracy is paramount} and runtime is less constrained, progressive refinement through retraining with new data can lead to better model guidance.
+\end{itemize}
+
+It is difficult to define a one-size-fits-all policy for RankNet usage. Each application may require a different strategy depending on its goals, compute budget, and architectural diversity. Nevertheless, the core idea of RankNet—as a predictive, pairwise model that estimates relative architecture quality—remains highly versatile. Even with minimal overhead, it can significantly accelerate neural architecture search by reducing the number of poorly performing candidates that require full evaluation.
+
+\section{Generalization to Other Domains}
+
+Although this work has focused on image classification using the CIFAR-100 dataset, a natural direction for future research is to extend the accelerated NAS framework to other data modalities. Many embedded and real-world applications demand efficient models for tasks such as audio classification (e.g., keyword spotting, environmental sound recognition), time-series forecasting, and sensor-based anomaly detection.
+
+Applying the proposed acceleration strategies—such as early stopping, surrogate modeling with RankNet, and one-time training—across these domains would provide valuable insight into their generality and robustness. In particular, audio-based tasks, which often rely on spectrogram-based CNN architectures, offer a promising testbed due to their structural similarity to image-based models. Validating the effectiveness of NAS acceleration techniques in these contexts would demonstrate their broader applicability and relevance beyond image classification.
+
+
+\section{Application to Diverse Network Architectures}
+
+This work has focused solely on convolutional neural networks (CNNs), which are widely used in embedded vision applications. However, modern lightweight AI models increasingly incorporate alternative architectural elements, such as attention mechanisms, transformer layers, and hybrid CNN-transformer designs. Future work could investigate whether the proposed acceleration techniques—such as RankNet-based surrogate modeling, early stopping, and one-time training—remain effective when applied to these more advanced model families.
+
+Transformer-based architectures (e.g., MobileViT \cite{MobileViT}, TinyViT \cite{TinyViT}) and hybrid models offer greater representational power and are gaining popularity in embedded systems due to their improved ability to capture long-range dependencies. Similarly, graph-based models such as Graph Neural Networks (GNNs) are used in domains like molecular analysis and anomaly detection, and present unique structural challenges for NAS.
+
+Successfully extending the NAS framework to support such architectures would require carefully designed search spaces and possibly new embedding strategies for surrogate learning. Nevertheless, if these adaptations are made, the acceleration techniques proposed in this work have the potential to generalize across a wide range of network types—broadening the scope and impact of efficient NAS in embedded AI.
+
+
+\section{Expansion of Search Space and Operators}
+
+An important direction for future work is to expand the search space to include a broader range of architectural components that are commonly used in resource-constrained environments. This may involve integrating additional layer types such as depthwise separable convolutions, squeeze-and-excitation blocks, inverted residuals, or lightweight attention mechanisms.
+
+Extending the search space in this way would enable the discovery of more diverse and potentially better-performing architectures tailored to specific deployment requirements. A key challenge, however, is maintaining the efficiency of the NAS process despite this increased complexity. Validating the sustained effectiveness of the proposed acceleration techniques in the context of an expanded search space would underscore the framework’s adaptability and robustness.
+
+\section{Evaluation in Unsupervised and Self-supervised Settings}
+
+While this work has focused on supervised classification tasks, an important direction for future research is the extension of accelerated NAS methods to unsupervised and self-supervised learning paradigms. Architectures such as autoencoders, variational autoencoders, and contrastive learning models (e.g., SimCLR, BYOL) are increasingly used in embedded scenarios for tasks like anomaly detection, representation learning, and sensor data analysis.
+
+Applying the proposed acceleration strategies—such as RankNet-based surrogate modeling and early stopping—in these contexts would help evaluate their effectiveness in optimizing encoder–decoder or contrastive architectures, where objective functions differ significantly from classification loss.
+
+\bigskip
+
+Pursuing these directions would not only broaden the applicability of the techniques introduced in this thesis but also strengthen their value across a wide range of learning paradigms, model types, and hardware constraints. Such generalization would further establish the proposed methods as a foundational component of efficient NAS for real-world embedded AI applications.
+

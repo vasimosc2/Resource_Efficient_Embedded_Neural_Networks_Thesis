@@ -1,5 +1,5 @@
 \chapter{Methodology and Tools}
-
+\label{chap:Methodology}
 
 
 
@@ -14,6 +14,12 @@ We built and trained all neural networks using TensorFlow (version 2.18) with th
 
 Training was performed on a workstation with GPU support, The GPU used in our experiments was the \textbf{Tesla V100 SXM2 32GB}.
 In addition, we used auxiliary Python libraries: \texttt{scikit-learn} for computing evaluation metrics (precision, recall, F1-score), and \texttt{pandas} for logging results. The genetic algorithm are also implemented in Python using \texttt{NumPy} and \texttt{TensorFlow}. This entire experimentation framework runs on DTU's HPC.
+
+\subsection*{Power Profiler Kit II}
+
+The \textbf{Power Profiler Kit II (PPK2)} from Nordic Semiconductor was used to both power the Arduino Nano BLE 33 Sense and measure its current consumption during inference. The PPK2 was operated in source meter mode, supplying a constant voltage while simultaneously recording the current draw over time. This setup enabled reliable and high-resolution profiling of the power usage associated with different model configurations deployed on the device.
+
+The collected current data, combined with the inference time, was used to estimate the total energy consumption for each model. This allowed for a practical evaluation of the trade-offs between model accuracy, size, and energy efficiency ~\cite{nordicPPK2}.
 
 \subsection*{TensorFlow Lite for Microcontrollers}
 
@@ -72,7 +78,8 @@ The training and evaluation phase is a critical part of the overall pipeline, re
 \item a standard split: 50,000 training images and 10,000 test images
 
 \end{itemize}
-The dataset is challenging due to its high number of classes and imbalanced class distribution, which increases the importance of using evaluation metrics beyond just accuracy.
+
+The dataset is challenging due to its high number of classes, which increases the importance of using evaluation metrics beyond just accuracy.
 
     \item \textbf{Model Training}
     Each candidate's architecture is trained from scratch using TensorFlow 2.18.0, with GPU acceleration enabled where available. The training pipeline includes the following steps:
@@ -91,9 +98,6 @@ After training, each model is evaluated on the test set using several key perfor
     \item \textbf{Test Accuracy}: Overall classification accuracy across all test images.
     \item \textbf{Precision}: The proportion of correct positive predictions per class.
     \item \textbf{Recall}: The proportion of actual positives that were correctly identified.
-    \item \textbf{F1-Score}: The harmonic mean of precision and recall, particularly useful for imbalanced datasets like CIFAR-100.
-
-
 \end{itemize}
 
 These metrics provide a more comprehensive understanding of model performance, especially for classes with fewer training examples.
@@ -200,7 +204,7 @@ The resulting header can then be included in the Arduino project source code, al
 
 After completing the above-mentioned procedure, the Keras model has been successfully transformed into a format compatible with the target microcontroller. The final step involves deploying this model onto the device.
 
-We achieve this by integrating the generated \texttt{.h} header file containing the TFLite model into an Arduino sketch. This sketch, described in detail in \hyperref[sec:DeploymentProcess]{Section~\ref*{sec:DeploymentProcess}}, handles model loading, input preprocessing, inference, and output interpretation. Through this deployment pipeline, we are able to perform on-device evaluation and validate the model's performance under real hardware constraints.
+We achieve this by integrating the generated \texttt{.h} header file containing the TFLite model into an Arduino sketch. This sketch, described in detail in \hyperref[sec:DeploymentProcess]{Section~\ref*{sec:DeploymentProcess}}, handles model loading, input preprocessing, inference, and output interpretation. Through this deployment pipeline, we are able to perform on-device evaluation and validate the model's performance under real hardware constraints as well as the energy consumption of the models inference.
 
 
 

@@ -1,5 +1,5 @@
 \chapter{Optimizations of NAS Algorithm}
-
+\label{chap:nas_optimizations}
 
 \begin{sloppypar}
 While black-box Neural Architecture Search (NAS), as described in the Section~\ref{chap:nas}, offers a highly flexible and effective framework for discovering high-performing models, it is also notoriously resource-intensive and time-consuming. These limitations make it challenging to apply in real-world scenarios, particularly on constrained hardware. In this chapter, we introduce a set of optimizations designed to improve the efficiency of black-box NAS, with a focus on accelerating evaluations and reducing the overall search time, without compromising the quality of the discovered architectures.
@@ -46,8 +46,6 @@ Although the Arduino Nano 33 BLE Sense provides 1~MB of Flash memory and 256~KB 
     \end{itemize}
 \end{itemize}
 
-\newpage
-
 
 \begin{itemize}
     \item \textbf{RAM Overhead:} Beyond the Tensor Arena—which is allocated specifically for intermediate buffers during inference—several other components consume RAM:
@@ -81,11 +79,6 @@ Empirical measurements during deployment revealed that, in addition to the model
     \item \textbf{RAM Usage:} \textasciitilde45--50~KB for the tensor arena and runtime state.
 \end{itemize}
 
-
-
-
-
-\clearpage
 
 \subsection{Flash Memory Estimation}
 
@@ -153,7 +146,9 @@ The key insight is that we can estimate the peak RAM usage by analyzing the size
 
  A simplified but effective heuristic is to assume that the input and output tensors of each layer represent the concurrent memory needed during the computation of that layer, and take the maximum over all layers \cite{tensorflow_RamEstimation}. 
 
-However, layers such as Concatenate introduce memory persistence, requiring previous activations to remain allocated until the merge operation completes. This forces multiple tensors to coexist in memory simultaneously, leading to overlapping memory demands. As a result, the real peak RAM usage can substantially exceed the simple input-output memory estimation. 
+However, layers such as Concatenate introduce memory persistence, requiring previous activations to remain allocated until the merge operation completes. This forces multiple tensors to coexist in memory simultaneously, leading to overlapping memory demands. As a result, the real peak RAM usage can substantially exceed the simple input-output memory estimation.
+
+
 
 
 As illustrated in Figure~\ref{fig:TakuNet}, our model architecture is organized into three main stages:
@@ -166,7 +161,19 @@ As illustrated in Figure~\ref{fig:TakuNet}, our model architecture is organized 
 
 The \textbf{Stem Block} and \textbf{Refiner Block} consist of consecutive layers without any additions or skip connections. Consequently, estimating the peak RAM usage for these blocks is straightforward—it corresponds to the maximum RAM required by any single layer within the block.
 
-In contrast, each \textbf{TakuStage} includes concatenation operations. When computing the memory usage for these operations, we must consider that both input tensors must be held in memory simultaneously to compute the output. Therefore, for each TakuStage, we calculate the peak RAM usage by identifying the maximum RAM required across all concatenation operations.
+In contrast, each \textbf{TakuStage} includes residual operations, which require special consideration in memory estimation. Specifically, when performing concatenation or skip-connection, all input tensors must be available in memory at the same time to compute the output. This increases the peak memory footprint compared to purely sequential operations. To accurately account for this, we compute the peak RAM usage for each \textit{TakuStage} by identifying the maximum cumulative memory required across all active feature maps at any point in time. Let \( A_i \) denote the activation size of layer \( i \), and let \( \text{Live}(t) \) represent the set of layers whose outputs must remain in memory at time step \( t \). Then, the maximum RAM usage is given by:
+
+\[
+\text{MaxRAM} = \max_{t} \left( \sum_{i \in \text{Live}(t)} A_i \right)
+\]
+
+where
+\[
+\text{Live}(t) = \left\{ i \mid \text{output of layer } i \text{ is still needed for a future operation at time } t \right\}
+\]
+
+This formulation ensures that memory is only released after all dependencies have consumed the relevant activations.
+
 
 To estimate the total maximum RAM required by the entire model, we take the maximum RAM usage from each of the three blocks and select the largest among them:
 
@@ -186,13 +193,44 @@ To better capture this discrepancy, we applied a similar approach as the previou
   \label{fig:ram-linear-regression}
 \end{figure}
 
+\subsection{Energy Consumption Estimation}
+
+Energy estimation is one of the most important aspects when deploying neural networks on microcontrollers, especially in power-constrained environments. The total energy consumed during a single inference can be expressed as:
+
+\[
+E = V \cdot \sum_{t=0}^{t_m} I(t) \cdot \Delta t
+\]
+
+where \( E \) is the energy in joules, \( V \) is the supply voltage (assumed constant), \( I(t) \) is the instantaneous current at time \( t \), and \( t_m \) is the duration of the inference.
+
+In this work, the supply voltage was fixed at 3.3\,V using the Power Profiler Kit II. Figure~\ref{fig:current_profile} shows the measured current profile during a sequence of inference operations on the Arduino Nano BLE 33 Sense.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{Pictures/Current.png}
+    \caption{Current consumption during repeated model inference operations. Peaks correspond to active computation phases.}
+    \label{fig:current_profile}
+\end{figure}
+
+As illustrated, the current remains relatively low during idle periods and exhibits distinct peaks during inference, where the processor becomes active. These peaks typically reach values around 10–15\,mA, while the baseline current hovers around 3–4\,mA.
+
+This behavior reflects the nature of the microcontroller's operation: the Cortex-M4 CPU periodically wakes from low-power states to execute inference computations, then returns to idle. The CPU frequency—typically around 64\,MHz on the Arduino Nano BLE 33 Sense—determines how fast each instruction is executed. A higher frequency means that computations are completed faster, but it also implies more switching activity in the silicon, which increases instantaneous current draw.
+
+However, our measurements show that the peak current is mostly determined by the processor architecture and workload type, and not by the specific neural network model. Consequently, the current profile \( I(t) \) remains relatively unchanged between models. The main variable that affects energy consumption is the inference time \( t_m \), which varies depending on the model's size and complexity.
+
+Therefore, minimizing inference time directly contributes to energy savings, making it a key optimization objective in resource-constrained embedded AI applications.
+
 
 
 \subsection{Inference Time Estimation}
-Another very interesting estimation we can do based on the already computed RAM memory is the Inference time.
 
-Inference time refers to the time a trained model takes to produce an output from a given input – essentially the latency of a single forward-pass execution. This inference latency is strongly influenced by the model’s RAM (memory) usage, especially in embedded or microcontroller settings. Higher RAM consumption typically means the model must handle larger weight matrices or intermediate tensors in memory, leading to more data that needs to be stored and accessed during computation.
-studies confirm that optimizing memory usage tends to speed up inference. For example, using fused in-place operations to reduce peak RAM footprint by about 1.6 × yielded a 1.2–2× faster inference execution in a TinyML context \cite{inferenceTime1}. Similarly, an embedded ML framework that lowered memory usage by 31\% achieved a remarkable 92\% reduction in inference latency compared to a less memory-efficient baseline~\cite{inferenceTime1}.
+Inference time refers to the duration a trained model requires to process an input and produce an output — essentially, the latency of a single forward-pass computation. In the context of embedded systems, inference time is a key metric, as it directly impacts both the responsiveness and energy consumption of a deployed model.
+
+One important observation is that inference time is strongly influenced by the model’s memory (RAM) usage. 
+
+On microcontrollers, where memory and computational bandwidth are both constrained, models that consume more RAM typically involve larger weight matrices or more extensive intermediate tensor storage. These factors increase the volume of memory access operations and place greater demand on the processor, resulting in longer inference durations.
+
+Studies confirm that optimizing memory usage tends to speed up inference. For example, using fused in-place operations to reduce peak RAM footprint by about 1.6 × yielded a 1.2–2× faster inference execution in a TinyML context \cite{inferenceTime1}. Similarly, an embedded ML framework that lowered memory usage by 31\% achieved a remarkable 92\% reduction in inference latency compared to a less memory-efficient baseline~\cite{inferenceTime1}.
 
 
 Those assumptions were confirmed after our test, finding a Linear corelation between the actual Measured RAM of the model and the inference time needed to produce the result.
@@ -205,10 +243,8 @@ Those assumptions were confirmed after our test, finding a Linear corelation bet
 \end{figure}
 
 
-\subsection{Current Estimation}
 
 
-\TODO{Section to be added when current is estiamted}
 
 \section{Model Comparison}
 After the creation of the models in each new generation in the GA, we face the challenge on how to correctly choose the best models as parents for the upcoming generations and how to accelerate this procedure. So in the section the Tournament Selection and RankNet will be explained on how they tackle those issues. 
@@ -224,22 +260,57 @@ In effect, TS avoids the extreme elitism of always picking the single best, whic
 By keeping a variety of architectures in the gene pool, TS enables the GA to explore multiple promising regions of the search space. This broader search helps prevent overfitting to any one metric and tends to produce more robust CNN designs.
 
 
+
+
+
 \subsection{RankNet}
 
-In our initial approach, we attempted to train all the models and then use the TS, to create the new generation. After some experiments, we find out that this approach was extremely time-consuming to fully train a model only to drop it in the tournament selection. For this reason we introduced \textit{RankNet} to be able to predict the best model even without training.
-
-\TODO{Look at this a bit more}
+In our initial approach, we trained all candidate models and then applied tournament selection (TS) to compare their performance. The top-performing models were subsequently selected to form the next generation. Through experimentation, we found that fully training each model before applying tournament selection was highly time-consuming, especially when many models were ultimately discarded. To address this inefficiency, we introduced \textit{RankNet}, a predictive model designed to estimate the relative performance of candidates without requiring any training.
 
 \textbf{RankNet} is a pairwise ranking model originally developed for learning-to-rank tasks (e.g. search result ranking). It uses a shared neural network to map each input (here, an architecture embedding) to a score, then models the probability that one item is better than another by a sigmoid on the score difference \cite{RankNet}.
 
 A key enabler for RankNet in NAS is a fixed-length embedding of each architecture that captures its structure. Recent works use graph-based embeddings; for example, Graph2Vec treats a neural network’s computational DAG as a “document” of rooted subgraphs (analogous to words) and learns a vector representation such that architectures with similar subgraph patterns are mapped close together in embedding space \cite{RankNet}.
 
-In our case, the embedding strategy is much simpler and more lightweight. We use the hyperparameters defined in the NAS search space, assuming a fixed architecture template across all candidate models. Since only the internal parameters (e.g., kernel sizes, filter counts, strides) vary, this parameter-based embedding is both valid and appropriate. All numerical values are normalized and collected into a fixed-size vector, ready to be fed into the RankNet surrogate model.
+Unlike graph-based embeddings (e.g., Graph2Vec), we use a handcrafted, lightweight embedding derived from the NAS search space parameters. Each architecture is represented as a fixed-size vector containing:
+\begin{itemize}
+    \item Normalized hyperparameters (e.g., filter counts, kernel sizes, strides) from all the blocks of the architecutre.
+    \item One-hot encoded optimizer choices (SGD or AdamW),to be able to estimate even which optimized might fit better to the dataset.
+\end{itemize}
 
-Once the architectures are embedded, a RankNet model is trained on a set of fully evaluated networks. Rather than regressing absolute accuracy values, RankNet learns to predict *relative* performance: given a pair of architecture embeddings, it estimates the probability that one outperforms the other. This pairwise comparison allows RankNet to learn a ranking function such that $f(x_i) > f(x_j)$ when model $i$ performs better than model $j$. This strategy is advantageous because modeling relative fitness is often more robust and data-efficient than predicting absolute scores.
+This approach is computationally efficient and aligns with our fixed architecture template.
 
-However, during the early stages of evolution, the RankNet model is not yet reliable due to limited training data. To address this, we adopt two key strategies:
+Once the models are embedded, a RankNet model is trained on a set of fully evaluated networks. Rather than regressing absolute accuracy values, RankNet learns to predict *relative* performance: given a pair of architecture embeddings, it estimates the probability that one outperforms the other. The model itself uses a shared 3-layer MLP (64 $\rightarrow$ 32 $\rightarrow$ 16 units) to process each architecture embedding. A sigmoid output predicts the probability that one model outperforms another, given their embedding difference:
+\begin{equation}
+    P(x_i \succ x_j) = \sigma(f(x_i) - f(x_j)),
+\end{equation}
 
+where $f(x)$ is the shared MLP's score for embedding $x$. Training uses binary cross-entropy loss on pairs of fully evaluated models.This strategy is advantageous because modeling relative fitness is often more robust
+and data efficient than predicting absolute scores.
+
+
+To avoid computational overhead and ensure fair comparison across runs, we train RankNet only once using the fully evaluated models from the \textbf{initial population}. This snapshot provides diverse training signals while ensuring consistency.
+
+\begin{enumerate}
+    \item \textbf{One-Time Training:} RankNet is trained only once at the beginning of the search process. This decision is primarily driven by efficiency: repeated retraining would introduce significant computational overhead. By limiting training to a single round on the initial population, we reduce runtime while still providing useful ranking guidance.
+
+    \item \textbf{Active Correction:} During tournament selection, if RankNet favors an untrained model over a trained one, we train the untrained model and compare their true performance. If RankNet’s prediction was incorrect, we retain the better-performing model and use the misprediction as a penalty signal for RankNet—effectively updating its training data to reflect this mistake in the next retraining cycle.
+\end{enumerate}
+
+Although RankNet requires pairwise comparisons to learn, it does not demand a large number of individual models. Even with a relatively small initial population (e.g., 6-10 models), we can generate a quadratic number of pairs (up to $O(n^2)$), greatly expanding the effective size of our training dataset. In our implementation, we construct \textbf{all possible pairs} from the initial population. This step is computationally cheap and does not introduce any noticeable latency in the training pipeline.
+
+\paragraph{Pair Generation Algorithm :}
+Let $x$ be the number of fully evaluated models in the initial population. The total number of unique unordered model pairs that can be generated is:
+
+\[
+\text{Number of Pairs} = \binom{x}{2} = \frac{x(x - 1)}{2}
+\]
+
+This approach enables RankNet to learn from a rich set of comparisons, even when the initial number of fully trained models is relatively small. By generating all possible pairs, we achieve data-efficient training without introducing computational overhead. In doing so, our design strikes a careful balance between efficiency and generalization: RankNet helps avoid the costly full training of weak candidates during selection, while preserving fair, one-time evaluation behavior that aligns with real-world deployment constraints.
+
+
+\begin{comment}
+    However, during the early stages of evolution, the RankNet model is not yet reliable due
+to limited training data. To address this, we adopt two key strategies:
 \begin{enumerate}
     \item \textbf{Progressive Refinement:} As the search progresses, we accumulate an increasing number of fully trained models. After each generation, we retrain the RankNet using the new pairwise comparisons, allowing the model to incrementally improve its ranking accuracy.
     
@@ -247,6 +318,7 @@ However, during the early stages of evolution, the RankNet model is not yet reli
 \end{enumerate}
 
 These mechanisms help RankNet adapt over time and increase the reliability of its predictions, ultimately leading to a more efficient and informed neural architecture search.
+\end{comment}
 
 
 
@@ -257,45 +329,109 @@ These mechanisms help RankNet adapt over time and increase the reliability of it
 
 Once a model is selected—either as part of the initial population or through evolutionary selection—it must undergo full training to evaluate its true performance. Given the potentially large number of candidate architectures evaluated during the search, reducing training time becomes crucial for overall efficiency. Therefore, we implemented several optimization strategies to accelerate the training process, without significantly compromising the quality of the resulting models. These strategies aim to minimize unnecessary computational overhead, enabling faster feedback loops within the NAS cycle and more rapid convergence.
 
-\clearpage
-
 \subsection{Performance STOP}
 \label{sec:performance_stop}
-To reduce NAS training cost, we stop training candidate architectures early when their validation performance is unsatisfactory. We use two criteria:
+To reduce the training cost in Neural Architecture Search (NAS), we introduce two early stopping criteria based on the validation performance trajectory of candidate architectures. These rules help terminate unpromising models before exhausting the full training budget.
+
+Let \( A(t) \) denote the validation accuracy at epoch \( t \), and let \( T \) be the total number of epochs.
+
+We define two criteria:
 \begin{itemize}
 
-\item \textbf{Diminishing-returns rule}: If during a continuous window comprising $\alpha = 20\%$ of the total epochs the validation accuracy improves by less than 10\%, training is stopped. This criterion captures cases of strongly diminishing returns, where continued training is unlikely to yield significant improvements. If the model has not shown meaningful progress during this window, it is reasonable to assume that the remaining training budget will have limited impact.
 
-\item \textbf{No-improvement rule}: If the validation accuracy does not improve at all for a fixed number of consecutive epochs (e.g., 8–10), training is halted early. This rule acts as a complementary safeguard to the diminishing-returns criterion, enabling early termination even before reaching the 20\% threshold when stagnation is already evident.
+ \item \textbf{Diminishing-returns rule}: Training is stopped if, within a continuous window of length \( \alpha T \) epochs (where \( \alpha \in (0,1) \)), the relative improvement in validation accuracy is less than a threshold \( \epsilon \). Formally, define a window \( [t, t+\alpha T] \), and stop training if:
+  \[
+  \frac{A(t+\alpha T) - A(t)}{A(t)} < \epsilon
+  \]
+  This rule captures cases of strongly diminishing returns, where continued training yields minimal gains. If the model has not shown meaningful progress during this window, it is reasonable to assume that the remaining training budget will have limited impact.
 
+   \item \textbf{No-improvement rule}: Training is halted if the validation accuracy does not improve for a fixed number of consecutive epochs, denoted \( \tau \). That is, for \( \tau \) epochs:
+  \[
+  A(t) \leq A(t-1) \leq \dots \leq A(t-\tau)
+  \]
+  This acts as a safeguard for detecting early stagnation, even before the diminishing-returns window is reached.
 
 \end{itemize}
 
+
+These complementary criteria allow for early termination of underperforming models based on either slow progress or complete stagnation. Empirical evaluations across various NAS runs with different training budgets (e.g., 30, 50, 70 epochs) revealed that this strategy consistently reduces training time without degrading the fidelity of model selection. Inspired by recent NAS literature that advocates for efficient search through performance-based early termination \cite{li2020random}, we incorporated both rules into our pipeline.
+
+After extensive experimentation, we identified the following parameter configuration as the most effective trade-off between training efficiency and selection reliability:
+
+\begin{itemize}
+  \item \textbf{Patience} \( \tau = 4 \): Maximum number of epochs allowed without improvement.
+  \item \textbf{Window size} \( \alpha = 0.25 \): Fraction of total epochs used for evaluating diminishing returns.
+  \item \textbf{Minimum relative improvement} \( \epsilon = 0.05 \): Threshold below which training is stopped.
+\end{itemize}
+
+This configuration significantly reduces the average training time per model while maintaining a low misranking error and preserving the integrity of the NAS process.
+
+\begin{comment}
 In many cases, if the validation accuracy does not show meaningful improvement after a certain number of epochs, training can be safely stopped early. The rationale is that even with additional training, the model’s performance is unlikely to increase substantially, and therefore its overall fitness score will remain largely unchanged. This idea is supported by recent NAS studies that implement early termination strategies to speed up the search process without compromising model selection accuracy \cite{li2020random}. By terminating such models early, we avoid wasted computation while still preserving a reliable basis for comparison with other candidate architectures. This strategy helps reduce the total search time while maintaining the fairness and effectiveness of the NAS process.
+\end{comment}
 
 
+
+
+
+
+
+
+\begin{comment}
+    
 
 
 \subsection{Early Stopping}
-
+\TODO{Read this to see if it is good enough}
 Research indicates that during CNN training, the initial few epochs often yield the most significant gains in model learning, strongly shaping the network’s eventual accuracy. In other words, a large portion of a CNN’s final validation performance is determined early in training. The following are key findings from credible sources that support this idea.
 
 In an analysis of “critical learning periods,” the authors found that “the first few epochs are critical for the creation of strong connections” in a neural network, after which these connections “do not appear to change during additional training.” They conclude that this initial learning phase “plays a key role in determining the outcome of the training process.” In practice, most of the network’s representational capacity and generalization ability is established in these early epochs \cite{achille2017critical}
 
 In Figure~\ref{fig:val_accuracy}, the normalized validation accuracy of several \texttt{TakuNet} models is shown across training epochs. It is evident that for all four models, the biggest part of the final validation accuracy is reached within the first few epochs. Specifically, by epoch 5 out of 30—that is, just \( \frac{5}{30} \times 100 = 16.7\% \) of the total training time—each model already achieves $\sim 70\%$ of its eventual accuracy and by epoch 10 out of 30—that is, just \( \frac{10}{30} \times 100 = 33.4\% \)  of the total training time—each model already achieves $\sim 80\%$ of its eventual accuracy . This highlights the efficiency of early training and suggests that prolonged training may offer diminishing returns.
 
-\TODO{Here there is an issue, we cant define the best. The only thing I can say is that through many experiments I get the best parameters}
-
 In order to speed up the entire NAS algorithm, a Custom Callback method was introduced, which measured the validation accuracy of the model at the most important epochs. If the validation accuracy did not exceed a specific threshold, the algorithm abandons the model as it is pointless to spend more training time to a non-optimal model based on its constraints.
+\end{comment}
 
-\begin{figure}[ht]
+
+
+\subsection{Early Stopping}
+\label{sec:early_stopping}
+
+Extensive research has shown that the early stages of convolutional neural network (CNN) training contribute disproportionately to a model's eventual performance. In particular, the first few epochs are often decisive in shaping the network's representational capacity and generalization ability.
+
+A notable study on “critical learning periods” reports that “the first few epochs are critical for the creation of strong connections,” which “do not appear to change during additional training” \cite{achille2017critical}. The authors conclude that this early phase plays a central role in determining the final outcome of training. Empirically, this suggests that much of a CNN’s final validation accuracy is achieved early in training, and that continued training yields diminishing returns.
+
+Figure~\ref{fig:val_accuracy} illustrates this effect for several \texttt{TakuNet} models. The normalized validation accuracy curves reveal that:
+\begin{itemize}
+  \item By epoch 5 out of 30 (just \( \frac{5}{30} \times 100 = 16.7\% \) of the total training time), each model achieves approximately 70\% of its final validation accuracy.
+  \item By epoch 10 (33.4\% of training), the models have already reached around 80\% of their eventual performance.
+\end{itemize}
+
+These observations highlight the efficiency of early training and support the use of early stopping mechanisms to reduce unnecessary computation.
+
+To leverage this behavior in our NAS pipeline, we introduced a custom callback mechanism that monitors validation accuracy at a strategic checkpoint. If the accuracy fails to exceed a predefined threshold by a specific fraction of the training process, the model is deemed unpromising and discarded early. Formally, let \( A(t) \) denote the validation accuracy at epoch \( t \), and let \( T \) be the total number of training epochs. We define an early termination condition as:
+
+\[
+A(t) < A_{\min} \quad \text{where} \quad t = \lfloor \beta \rfloor
+\]
+
+Here, \( \beta \in (0,T) \) represents the early evaluation point, and \( A_{\min} \) is the minimum acceptable validation accuracy at that point.
+
+After extensive experimentation across multiple runs and training durations, we found that this early stopping rule was effective in filtering out weak models without degrading overall NAS performance. It significantly accelerated the search process by terminating unpromising architectures early, thereby saving substantial computation while maintaining model selection quality.
+
+Notably, we observed that the optimal values for the evaluation point \( \beta \) and the minimum acceptable accuracy \( A_{\min} \) vary depending on the total number of training epochs. However, for any fixed number of training epochs, these values remained stable and consistent across experiments. This indicates that early stopping parameters can be reliably tuned for each training schedule and reused without the need for frequent adjustment.
+
+
+
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.85\linewidth]{Pictures/val_accuracy_comparison.png}
     \caption{Normalized validation accuracy curves for different TakuNet variants.}
     \label{fig:val_accuracy}
 \end{figure}
 
-\clearpage
+
+
 
 \subsection{Learning Rate Scheduling}
 

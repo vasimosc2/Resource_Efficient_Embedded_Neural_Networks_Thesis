@@ -22,74 +22,129 @@ In many cases, embedded software must be carefully implemented in C/C++ or even 
 \clearpage
 
 
+
+
+
+
+
+
 \section{Introduction to Neural Architecture Search}
 \label{chap:nas}
-Neural Architecture Search (NAS) refers to the automated design of neural network architectures, aiming to replace laborious manual tuning by human experts \cite{elsken2019neural}. It has emerged as a
-powerful tool for automating the design of deep learning models, but it is often criticized for its computational overhead and time consuming evaluations. In practical settings, especially on resource constrained platforms, reducing the total search time becomes a critical objective. In recent years NAS has produced networks that surpass hand-designed models on benchmarks such as CIFAR-10 and ImageNet.As a subfield of AutoML, NAS can be viewed along three dimensions (search space, search strategy, performance estimation)\cite{elsken2019neural}.
+Neural Architecture Search (NAS) refers to the automated design of neural network architectures, aiming to replace laborious manual tuning by human experts \cite{elsken2019neural}. As a subfield of AutoML, NAS can be viewed along three key dimensions: the search space, the search strategy, and the performance estimation method~\cite{elsken2019neural}. In recent years, NAS has demonstrated its ability to discover architectures that outperform manually designed models on benchmarks such as CIFAR-10 and ImageNet.
 
-There are two distinguish ways to apply this algorithm \textbf{Black Box} and \textbf{DARTS (Differentiable ARchiTecture Search)}.
+\subsection{Default NAS: Black-Box Approach}
+The default form of NAS is typically \textbf{black-box NAS}, which treats the architecture search process as a discrete and non-differentiable optimization task. In this setting, the internal structure of the architecture is opaque to the optimizer: each candidate model is treated as a "black box" that is trained and evaluated using a predefined fitness function (e.g., accuracy, latency, model size).
 
-\subsection{DARTS}
- \textit{DARTS} (Differentiable ARchiTecture Search) and related ``one-shot'' methods embed the discrete NAS search into a continuous optimization problem ~\cite{liu2018darts}, introducing DARTS as a way to make NAS tractable for CNN design by relaxing the discrete choices into continuous weights \cite{elsken2019neural}.
+Popular optimization strategies for black-box NAS include reinforcement learning (RL), evolutionary algorithms (EA), and Bayesian optimization~\cite{qiu2023shortest}. These methods work by sampling and evaluating entire architectures, and then using performance feedback to guide future exploration.
 
-Instead of sampling architectures one at a time, DARTS trains a single over-parameterized \textit{supernet} \cite{SuperNet} that contains all candidate operations (e.g., convolutions, pooling) at each layer or edge. Each edge in the CNN cell is modeled as a weighted sum of possible operations:
+\textbf{Advantages:}
+\begin{itemize}
+    \item Flexible and expressive: can handle arbitrary architectures and constraints (e.g., latency, energy, memory).
+    \item Supports any performance metric, not limited to differentiable objectives.
+\end{itemize}
+
+\textbf{Disadvantages:}
+\begin{itemize}
+    \item Extremely computationally expensive; early approaches required thousands of GPU days~\cite{liu2018darts}.
+    
+\end{itemize}
+
+Because of these computational challenges, several optimization techniques have been proposed to accelerate NAS without sacrificing too much performance. The two most prominent approaches are \textbf{DARTS} and \textbf{Supernet-based NAS}, both of which aim to make NAS more tractable by sharing weights across candidate architectures.
+
+\subsection{Optimization Technique 1: Differentiable NAS (DARTS)}
+\textit{DARTS} (Differentiable ARchiTecture Search) transforms the discrete NAS problem into a continuous one by introducing a set of differentiable architecture parameters~\cite{liu2018darts}. Instead of evaluating architectures one at a time, DARTS constructs a single \textit{over-parameterized supernet} that contains all candidate operations at each layer or edge. Each operation is associated with a continuous weight $\alpha_i$ representing its importance:
 
 \begin{equation}
 y = \sum_{i=1}^{m} \alpha_i \, o_i(x), \quad \alpha_i \geq 0, \quad \sum_{i} \alpha_i = 1
 \end{equation}
 
-where $o_i$ are candidate conv/pool/skip operations and $\alpha_i$ are continuous architecture parameters. These $\alpha_i$ weights serve as proxies for the architecture choice.
-
-\TODO{See that again}
-
-The search is then a \textit{bi-level optimization}: the normal network weights $w$ (for convolution filters) and the architecture weights $\alpha$ are both learned, typically by alternating gradient descent on training and validation data \cite{elsken2019neural}. Once training converges, DARTS discretizes the solution by selecting, for each layer, the operation with the highest weight $\alpha$ – yielding a concrete CNN architecture (often a small ``cell'' that can be stacked).
-
-
-\textbf{Advantages:}
+This enables gradient-based optimization over both:
 \begin{itemize}
-    \item Significantly more efficient than black-box methods (orders of magnitude less compute)~\cite{liu2018darts}.
-    \item Enables fast, gradient-based optimization for cell-based CNN design.
+    \item The standard network weights $w$ (e.g., convolution filters), and
+    \item The architecture weights $\alpha$.
 \end{itemize}
 
-\textbf{Disadvantages:}
-\begin{itemize}
-    \item \textbf{Limited to differentiable and pre-defined search spaces}\textit{:} DARTS requires that all architecture choices be expressible as continuous and differentiable parameters. This means the engineer must define a fixed search space in advance, such as a set of candidate filter sizes (e.g., 3×3, 5×5) or layer types, which DARTS will then optimize over. As a result, DARTS does not design networks from scratch but rather assists in selecting the best options within a constrained, cell-based framework. This limits its ability to explore broader architectural innovations and makes the process only partially automated~\cite{elsken2019neural}.
+The search process is a \textit{bi-level optimization}: weights $w$ are trained on training data, while architecture weights $\alpha$ are optimized on validation data. Once the search converges, the architecture is discretized by selecting, for each layer, the operation with the highest $\alpha_i$.
 
-    
-    \item \textbf{Optimization instability and performance collapse:} The bi-level optimization in DARTS is known to be sensitive to the training dynamics. It often leads to degenerate solutions, such as over-prioritizing parameter-free operations like skip connections or pooling layers, resulting in under-parameterized networks~\cite{zela2020understanding}.
-    
-    \item \textbf{Incorporating hard constraints is difficult}\textit{:} DARTS does not natively support hard architectural constraints, such as strict latency, memory, or energy budgets. These constraints must be approximated using soft regularization terms or multi-objective weighting, which may not guarantee feasibility in real-world deployment scenarios~\cite{king2025micronas}.
-    
-    \item \textbf{Memory and compute bottlenecks}\textit{:} Since the supernet includes all candidate operations simultaneously, memory usage can become a bottleneck, especially for high-resolution input or larger search spaces. This limits the scalability of DARTS to more complex tasks or deeper networks.
+\textbf{What DARTS Does:}
+\begin{itemize}
+    \item Builds a supernet with all possible operations active via softmax weights.
+    \item Learns both model parameters and architecture jointly via gradient descent.
+    \item After training, selects the most likely operation per layer (argmax of $\alpha$).
 \end{itemize}
 
-
-\subsection{Black Box}
-Black-box NAS treats the architecture search problem as a discrete, black-box optimization task. This means the internal structure of the architecture is not differentiable and is instead evaluated using methods like reinforcement learning (RL), evolutionary algorithms (EA), or Bayesian optimization~\cite{qiu2023shortest}. Each candidate CNN is trained (fully or partially) and evaluated using a fitness function (e.g., accuracy, latency). Based on these evaluations, the search algorithm proposes new candidates.
-
-\textbf{Advantages:} 
+\textbf{Strengths:}
 \begin{itemize}
-    \item Unrestricted search space; any performance metric or constraint can be handled, making suitable for real AutoML \cite{burrello2023enhancing}.
-    \item Offers high flexibility in defining the search space and objective. Specially good when trying to create a model which should fit inside certain hardware constrains.
+    \item Much faster than black-box NAS (orders of magnitude fewer evaluations).
+    \item Enables efficient gradient-based architecture search.
 \end{itemize}
 
-\textbf{Disadvantages:}
+\textbf{Limitations:}
 \begin{itemize}
-    \item Very expensive in terms of computation; early works required thousands of GPU days~\cite{liu2018darts}.
-    \item the final selected architecture usually needs to be trained from scratch to reach peak performance. This step significantly adds to the overall time and compute required, especially when done for each promising candidate. 
+    \item Only works for differentiable and pre-defined search spaces.
+    \item Cannot easily incorporate hard hardware constraints (e.g., RAM/Flash).
+    \item Often suffers from optimization instability and performance collapse~\cite{zela2020understanding}.
+    \item Requires retraining the final architecture after discretization.
 \end{itemize}
 
-Despite these drawbacks, black-box NAS remains a strong choice for real-world applications, especially where flexibility and hardware-awareness are important. In this thesis, we adopt an \textbf{evolutionary algorithm}, specifically a Genetic Algorithm (GA), to guide the black-box search process. GAs are population-based optimizers inspired by natural selection. At each generation, a set of candidate models is evaluated, and the best-performing ones are selected as parents to produce the next generation through mutation and crossover operations.
+\subsection{Optimization Technique 2: Supernet-Based NAS}
+Supernet-based NAS techniques such as Once-for-All~\cite{cai2019once} and BigNAS~\cite{yu2020bignas} train a single, unified \textbf{supernet} that includes all candidate subarchitectures. Unlike DARTS, which mixes all operations during each forward pass, these methods activate only \textit{one subnetwork at a time} during training. Subnetworks share weights where applicable, making training efficient.
 
-This approach has several key benefits: it naturally supports parallel evaluation of candidates, can maintain diversity in the population to avoid local optima, and allows constraints (like model size or latency) to be enforced directly during evaluation. By combining black-box flexibility with a lightweight and scalable optimization strategy, Genetic Algorithms provide an effective and practical tool for hardware-aware NAS in constrained environments.
+\textbf{What Supernet-Based NAS Does:}
+\begin{itemize}
+    \item Trains one large supernet that includes all subnetworks.
+    \item At each training step, samples and trains a single subnetwork (one path).
+    \item After training, subarchitectures can be extracted and evaluated without retraining.
+\end{itemize}
+
+\textbf{Key Techniques:}
+\begin{itemize}
+    \item \textit{Weight sharing:} Subnets inherit trained weights from the supernet.
+    \item \textit{Progressive shrinking:} Trains large subnets first, then adapts to smaller ones (e.g., lower width or depth).
+\end{itemize}
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Extremely fast subnet evaluation — no need to retrain.
+    \item Naturally supports hardware-aware search (latency, RAM, Flash).
+    \item Subnet evaluation is realistic, since only one op is active at a time.
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Requires careful training to ensure fair weight sharing.
+    \item Subnets may suffer from gradient interference; performance may not fully match retrained models.
+    \item Fine-tuning may be required for deployment-quality accuracy.
+\end{itemize}
+
+\TODO{I think I should not say here which version I used}
+
+\begin{comment}
+\subsection{Summary and Thesis Direction}
+Black-box NAS offers maximum flexibility and supports arbitrary performance constraints, but suffers from high computational cost. DARTS introduces differentiability to reduce this cost but trades off flexibility and realism. Supernet-based methods strike a middle ground, enabling efficient and hardware-aware search through weight sharing and path sampling.
+\end{comment}
+
+\vspace{0.3em}
+\noindent In this thesis, we adopt a \textbf{black-box NAS approach} using a \textbf{Genetic Algorithm (GA)} to optimize model architecture. This allows us to:
+\begin{itemize}
+    \item Directly incorporate hard constraints like RAM and Flash memory.
+    \item Evaluate fully instantiated models using custom estimators.
+    \item Search in an unconstrained space without relying on predefined, differentiable operations.
+\end{itemize}
+
+This approach balances flexibility, deployment realism, and scalability — making it ideal for creating efficient, hardware-aware models in resource-constrained environments.
 
 
-\subsection{Comparison Summary}
-Black-box NAS methods align with the AutoML paradigm by treating the search process as a black-box optimization task. These methods do not assume any structural knowledge of the network and rely solely on performance metrics to guide the search, thus enabling fully automated exploration of large, complex search spaces. In contrast, differentiable NAS approaches like DARTS introduce a more guided optimization framework by relaxing the architecture search space into continuous parameters. This allows the use of gradients to efficiently steer the search, leading to faster convergence but at the cost of reduced flexibility.
 
-\begin{sloppypar}
-Based on the comparison above, this thesis uses a \textbf{black-box NAS approach} with a genetic algorithm. Unlike DARTS, which needs a carefully designed and differentiable search space, black-box NAS is more flexible and easier to use. One major advantage is that it allows us to include strict hardware limits—like memory or flash size—directly in the evaluation process. This makes it a better fit for real-world applications on resource-constrained devices. Since black-box NAS does not rely on gradients or predefined operations, it also supports fully automated search without requiring deep knowledge from the user. For these reasons, it is well suited for our goal of creating efficient and deployable models using AutoML.
-\end{sloppypar}
+
+
+
+
+
+
+
+
+
 
 
 \section{Convolutional Neural Networks (CNNs)}
@@ -143,9 +198,8 @@ CNNs offer several advantages over traditional machine learning models in the co
     \item \textbf{Translation Invariance}: Because of the convolutional architecture and pooling layers, CNNs are naturally invariant to small translations, rotations, and distortions in the input data.
     \item \textbf{Hierarchical Feature Learning}: CNNs are capable of learning features at multiple levels of abstraction, from simple edges to complex objects.
 
-
-
 \end{itemize}
+
 \subsection{Applications of CNNs}
 Convolutional Neural Networks have become a fundamental building block in the field of computer vision due to their exceptional ability to extract spatial hierarchies of features from image data. Their architecture is particularly well-suited for interpreting visual information, making them indispensable in numerous real-world applications across industries. Below are some of the most prominent domains where CNNs are applied:
 
@@ -154,16 +208,17 @@ Convolutional Neural Networks have become a fundamental building block in the fi
     
     CNNs are widely used in image classification tasks, where the goal is to assign a single label to an entire image based on its content.
     \begin{itemize}
+    
         \item \textbf{Example}: Classifying images into categories such as cats, dogs, airplanes, or flowers.
         \item CNNs automatically learn to recognize distinguishing features—such as shapes, colors, and textures—that differentiate one class from another.
         \item Popular datasets: ImageNet, CIFAR-10, MNIST.
         
-
     \end{itemize}
     
     \item \textbf{Object Detection}
     
     Unlike image classification, object detection not only identifies the presence of objects but also locates them within the image using bounding boxes.
+    
     \begin{itemize}
         \item \textbf{Example}: Detecting pedestrians, vehicles, and traffic signs in real-time video feeds.
         \item CNN-based models like YOLO (You Only Look Once), Faster R-CNN, and SSD (Single Shot Multibox Detector) are state-of-the-art in this field.
@@ -214,3 +269,40 @@ NAS is a specialized AutoML technique that identifies the best neural network co
 NAS can incorporate such constraints into its search objective, enabling the discovery of CNN architectures that are suitable for deployment on resource-constrained platforms such as microcontrollers. Recent research, including projects like MCUNet, has shown that NAS can generate compact and efficient CNNs that retain high classification accuracy while fitting within tight hardware budgets. \cite{pau2023quantitative}.
 
 These automatically discovered architectures have demonstrated success on vision tasks like CIFAR-100, operating effectively on low-power microcontroller-class devices.
+
+\subsection{TakuNet}
+
+In this thesis, we adopted \textbf{TakuNet}—a lightweight convolutional neural network architecture originally proposed for real-time aerial image classification in emergency response scenarios \cite{TakuNet}. TakuNet was explicitly designed to operate efficiently on embedded systems such as the NVIDIA Jetson Orin Nano and Raspberry Pi, while achieving high accuracy on aerial datasets like AIDER and AIDERv2.
+
+The original TakuNet architecture employs depth-wise separable convolutions and an early downsampling stem to reduce spatial dimensions in the initial layers, significantly lowering computational complexity. It also integrates dense connections for improved gradient flow and convergence, grouped point-wise convolutions to reduce parameter count, and Global Response Normalization (GRN) to enhance feature diversity and contrast. Furthermore, the model is trained using half-precision floating point (FP16), which improves compatibility with hardware accelerators like NVIDIA TensorRT.
+
+In this work, we adopted TakuNet as a \textbf{baseline architecture and design template} due to its promising trade-off between accuracy, parameter count, and computational efficiency. Although the original implementation demonstrated competitive performance when compared to other state-of-the-art models (see Table~\ref{tab:model_comparison}), its parameter size and memory footprint remained too large for direct deployment on typical microcontroller-class devices. 
+
+To address these limitations while retaining the core strengths of the architecture, we employed a \textbf{Neural Architecture Search (NAS)} algorithm to systematically refine both the macro- and micro-architecture of TakuNet. The goal was to tailor the network to our specific datasets and hardware constraints, achieving efficient inference without sacrificing classification performance.
+
+Further architectural details, along with additional enhancements aimed at improving validation accuracy within a limited number of training epochs, are provided in Chapter~\ref{chap:Architecture}.
+
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcccc}
+\hline
+\textbf{Model} & \textbf{Parameters} & \textbf{Model Size (MB)} & \textbf{F1-score} & \textbf{FLOPS} \\
+\hline
+VGG16 \cite{simonyan2014very} & 14,840,133 & 59.36 & 0.601 & 17.62G \\
+ResNet50 \cite{he2016deep} & 23,518,277 & 94.07 & 0.917 & 4.83G \\
+SqueezeNet \cite{iandola2016squeezenet} & 737,989 & 2.95 & 0.890 & 845.38M \\
+EfficientNet B0 \cite{tan2019efficientnet} & 4,013,953 & 15.66 & 0.905 & 479.68M \\
+MobileNetV2 \cite{sandler2018mobilenetv2} & 2,203,277 & 8.92 & 0.930 & 71.82M \\
+MobileNetV3 \cite{howard2019searching} & 4,208,437 & 16.08 & 0.915 & 206.22M \\
+ShuffleNet \cite{zhang2018shufflenet} & 1,258,729 & 5.03 & 0.908 & 176.82M \\
+EmergencyNet \cite{emergencynet} & 90,963 & 0.360 & 0.896 & 77.34M \\
+TinyEmergencyNet \cite{tinyemergencynet} & 39,334 & 0.160 & 0.895 & 36.30M \\
+\textbf{TakuNet$_\text{fp16}$ (ours)} & \textbf{37,685} & \textbf{0.15} & \textbf{0.943} & \textbf{35.93M} \\
+\hline
+\end{tabular}
+\caption{Comparison of model parameters, size, F1-score, and FLOPs on AIDER.}
+\label{tab:model_comparison}
+\end{table}
+
+
