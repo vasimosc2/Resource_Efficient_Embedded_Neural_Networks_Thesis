@@ -5,16 +5,16 @@ In this section, we present the results of our proposed acceleration techniques 
 
 As a baseline reference, we consider the unoptimized training setup consisting of 70 epochs. All subsequent optimization strategies aim to reduce the total training time while preserving the relative ranking of model performance. In particular, emphasis is placed on minimizing the risk of misranking high-performing models due to premature stopping or overly aggressive pruning. Maintaining ranking fidelity is crucial to ensure that acceleration techniques do not compromise the overall model selection process.
 
-The fitness function is defined as:
+The fitness function used in the Genetic Algorithm, to explore new model is defined as:
 
 \sloppy
 \begin{equation}
 \text{Fitness} =
 \begin{cases}
 \begin{aligned}
-0.7 \cdot \text{Accuracy}_{\text{TFLite}} 
-+ 0.2 \cdot \left(1 - \dfrac{\text{RAM}}{\text{MaxRAM}}\right) \\
-+ 0.1 \cdot \left(1 - \dfrac{\text{Flash}}{\text{MaxFlash}}\right),
+7 \cdot \text{ValidationAcc}_{\text{TFLite}} 
++ 2 \cdot \left(1 - \dfrac{\text{RAM}}{\text{MaxRAM}}\right) \\
++ 1 \cdot \left(1 - \dfrac{\text{Flash}}{\text{MaxFlash}}\right),
 \end{aligned}
 & \text{if } \text{RAM} \leq \text{MaxRAM} \land \text{Flash} \leq \text{MaxFlash} \\
 -1000, & \text{otherwise}
@@ -28,9 +28,16 @@ This formulation was chosen to explicitly incorporate hardware constraints into 
 
 Notably, although the highest accuracy achieved during training (at 70 epochs) was approximately 60\%, the fitness function allows models with lower accuracy (e.g., around 40\%) to outperform others if they demonstrate significantly lower memory usage. However, by assigning a higher weight (0.7) to the accuracy term in the fitness function, we ensure that performance remains the primary objective. This is especially important considering that accuracy typically ranges from 0.3 to 0.65, while the normalized RAM and Flash components can span from 0 to 0.85. Without the weighted terms, the smallest models would consistently dominate the selection process—regardless of their predictive performance. The chosen weighting strategy ensures that the evolutionary search favors architectures that are not only compact and efficient but also sufficiently accurate for deployment.
 
-It's important to note that microcontrollers are typically designed for specific tasks within embedded systems, combining processing, memory, and input/output peripherals on a single chip. This design makes them cost-effective and power-efficient for dedicated applications. In such scenarios, as long as the model fits within the available memory constraints of the microcontroller, such as the 256KB SRAM of the Arduino Nano 33 BLE Sense , the exact memory consumption becomes less critical. Therefore, the fitness function's weighting ensures a balance between model accuracy and resource efficiency, aligning with the practical considerations of deploying models on resource-constrained devices \cite{arduino_nano33ble}.
+It's important to note that microcontrollers are typically designed for specific tasks within embedded systems, combining processing, memory, and input/output peripherals on a single chip. This design makes them cost-effective and power-efficient for dedicated applications. In such scenarios, as long as the model fits within the available memory constraints of the microcontroller, such as the 256KB SRAM of the Arduino Nano 33 BLE Sense , the exact memory consumption becomes less critical. 
 
-In this chapter, we review the results of the optimization algorithms discussed in Chapter~\ref{chap:nas_optimizations}. Many of these techniques aim to reduce the training time of the NAS algorithm while maintaining the integrity of model selection. To evaluate their effectiveness, we analyze both the percentage error in predictive performance and the total training time saved.
+Therefore, the fitness function is weighted to prioritize the validation accuracy of the deployed model, while also assigning greater importance to RAM usage in order to reduce energy consumption. This design aligns with the practical constraints of deploying models on resource-limited devices such as the Arduino Nano 33 BLE Sense~\cite{arduino_nano33ble}.
+
+In this chapter, we review the results of the optimization algorithms discussed in Chapter~\ref{chap:nas_optimizations}. Many of these techniques aim to reduce the training time of the NAS algorithm while maintaining the integrity of model selection. 
+
+To evaluate the effectiveness of our proposed optimizations, we first conducted a baseline run, which serves as the \textbf{ground truth}. This run explored a set of model configurations without any optimizations applied. Based on these configurations, we then re-trained the same models under a hypothetical scenario where the optimizations had been used to guide the search process. This allowed us to simulate what the search might have explored using our accelerated approach.
+
+After re-training, we evaluated the impact of the optimizations in two ways: (1) by comparing the fitness-based rankings derived from the optimized run to those from the ground truth run, quantifying the misranking rate and the severity of ranking errors ( mean square error ); and (2) by measuring the total time that would have been saved had the optimizations been applied during the original search process.
+
 
 A key metric considered throughout this analysis is the mean squared error (MSE). In cases where an optimization misranks two models, we assess the severity of the misranking by comparing their fitness scores in the ground truth setting—defined by the full 70-epoch training. This provides a meaningful indication of the impact of prediction errors, helping us quantify how much the optimization distorts the model selection process.
 
@@ -42,7 +49,9 @@ The MSE for misranked pairs is computed as follows:
 
 where \( N \) is the total number of misranking errors, and \( \text{TrueFitness}_i \) and \( \text{TrueFitness}_j \) are the fitness scores of the misranked model pair \( (i, j) \) in the ground truth setup. A higher MSE indicates more severe misrankings, reflecting greater deviation from the ideal model selection.
 
-Although the fitness function is normalized between 0 and 1 for consistency across experiments, it is important to consider the absolute performance range of the evaluated models. To provide additional context, we report the fitness scores of the best and worst models prior to normalization. This helps quantify the practical implications of misrankings by illustrating how much real-world performance (e.g., in terms of accuracy or hardware usage) separates the top-performing models from the least efficient ones.
+We deliberately designed our fitness function to produce normalized values ( in the range [0, 10] ) in order to make this metric comparable across experiments and to amplify the penalty for more serious ranking errors. The squaring operation in MSE inherently magnifies the impact of large differences in fitness, which ensures that severe misrankings—those involving models with substantially different real-world performance—are penalized more heavily than smaller, less consequential mistakes.
+
+Although the fitness function is normalized between 0 and 10 for consistency across experiments, it is important to consider the absolute performance range of the evaluated models. To provide additional context, we report the fitness scores of the best and worst models prior to normalization. This helps quantify the practical implications of misrankings by illustrating how much real-world performance (e.g., in terms of accuracy or hardware usage) separates the top-performing models from the least efficient ones.
 
 \begin{table}[ht]
 \centering
@@ -51,16 +60,16 @@ Although the fitness function is normalized between 0 and 1 for consistency acro
 \toprule
 Model & Raw Fitness Score & Description \\
 \midrule
-Best Model & 0.565 & High accuracy, low memory usage \\
-Worst Model & 0.458 & Low accuracy, high memory \\
+Best Model & 5.65 & High accuracy, low memory usage \\
+Worst Model & 4.58 & Low accuracy, high memory \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-To better interpret the severity of MSE values, we also compute the root mean squared error (RMSE) and express it relative to the raw fitness score range, i.e., \( \text{maxFitness} - \text{minFitness} = 0.107 \). This ratio indicates how large the average prediction error is in relation to the total performance spread among evaluated models:
+To better interpret the severity of MSE values, we also compute the root mean squared error (RMSE) and express it relative to the raw fitness score range, i.e., \( \text{maxFitness} - \text{minFitness} = 1.07 \). This ratio indicates how large the average prediction error is in relation to the total performance spread among evaluated models:
 
 \begin{equation}
-\text{Relative RMSE} = \frac{\text{RMSE}}{0.565 - 0.458} = \frac{\text{RMSE}}{0.107}
+\text{Relative RMSE} = \frac{\text{RMSE}}{5.65 - 4.58} = \frac{\text{RMSE}}{1.07}
 \end{equation}
 
 A small relative RMSE (e.g., under 15\%) implies that, even when misrankings occur, the models involved are very close in terms of real-world performance, suggesting minimal practical impact. Conversely, a large relative RMSE (e.g., above 40\%) indicates that the ranking errors involve models with substantially different fitness, potentially leading to significantly suboptimal deployment decisions. This contextualization allows us to bridge the gap between statistical misranking rates and their real-world consequences.
@@ -103,7 +112,7 @@ TakuNet\_Mutant\_13 & 0.4719 & 0.4396 & 0.4396 & 0.4367 & adamw & 0.4342 & 0.439
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.85\linewidth]{Pictures/MemoryEstimationTest.png}
-    \caption{MemoryEstimationTest}
+    \caption{Overview of model training and deployability results.}
     \label{fig:memoryEstimationTest}
 \end{figure}
 
@@ -115,18 +124,18 @@ TakuNet\_Mutant\_13 & 0.4719 & 0.4396 & 0.4396 & 0.4367 & adamw & 0.4342 & 0.439
 \label{sec:ranknet_experiment}
 In this experiment, we analyzed the outcomes of a large-scale NAS run that lasted approximately 10 hours. Given that our selection process is based on tournament comparisons, it is nearly impossible to recreate the exact pairwise matchups observed during the original run. To ensure transparency and reproducibility, we retained both the fitness scores and the parameter configurations of every model evaluated.
 
-To evaluate the predictive performance of the RankNet model, we conducted \textbf{10{,}000 random pairwise comparisons} between different neural architectures, previously unseen to the RankNet. Our model was trained based on and initial population of \textbf{10 models} creating 45 pairs for training. In each comparison, the objective was to predict which of the two models would achieve superior performance. Given the randomness inherent in such pairings, a baseline model based on random guessing would be expected to achieve \textbf{50\% accuracy}. Despite this, \textbf{RankNet correctly identified the better-performing model in $\sim$85\% of the comparisons}, demonstrating strong predictive capability. Additionally, it achieved a mean squared error (MSE) of \textbf{1.15$\times$10\textsuperscript{-4}} on the \textit{normalized fitness function}, corresponding to a root mean squared error (RMSE) of \textbf{0.0107}. This translates to a \textbf{relative RMSE of 10.0\%}, indicating that even in cases where RankNet misranks two models, their actual performance is typically very close—thus limiting the potential negative impact of such errors (see Fig.~\ref{fig:RankNetComparison}).
+To evaluate the predictive performance of the RankNet model, we conducted \textbf{10{,}000 random pairwise comparisons} between different neural architectures, previously unseen to the RankNet. Our model was trained based on and initial population of \textbf{10 models} creating 45 pairs for training. In each comparison, the objective was to predict which of the two models would achieve superior performance. Given the randomness inherent in such pairings, a baseline model based on random guessing would be expected to achieve \textbf{50\% accuracy}. Despite this, \textbf{RankNet correctly identified the better-performing model in $\sim$81\% of the comparisons}, demonstrating strong predictive capability. Additionally, it achieved a mean squared error (MSE) of \textbf{1.71$\times$10\textsuperscript{-2}} on the \textit{normalized fitness function}, corresponding to a root mean squared error (RMSE) of \textbf{0.13}. This translates to a \textbf{relative RMSE of 9.0\%}, indicating that even in cases where RankNet misranks two models, their actual performance is typically very close—thus limiting the potential negative impact of such errors (see Fig.~\ref{fig:RankNetComparison}).
 
 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=1.05\linewidth]{Pictures/RankNetComparison.png}
-    \caption{RankNet Comparison}
+    \includegraphics[width=1.05\linewidth]{Pictures/RankNetComparison2.png}
+    \caption{RankNet tournament evaluation results, across 10,000 model matchup.}
     \label{fig:RankNetComparison}
 \end{figure}
 
 
-These results highlight the strong predictive capability of the RankNet model. Achieving an $\sim$85\% accuracy in pairwise comparisons represents a substantial improvement over the 50\% accuracy expected from random guessing. In ranking tasks, such a margin is considered highly significant, especially when coupled with a very low mean squared error. Even relatively small improvements above chance can yield meaningful benefits in optimization scenarios \cite{freund1999large}, making this level of performance particularly impaction.
+These results highlight the strong predictive capability of the RankNet model. Achieving an $\sim$81\% accuracy in pairwise comparisons represents a substantial improvement over the 50\% accuracy expected from random guessing. In ranking tasks, such a margin is considered highly significant, especially when coupled with a very low mean squared error. Even relatively small improvements above chance can yield meaningful benefits in optimization scenarios \cite{freund1999large}, making this level of performance particularly impaction.
 
 Moreover, in our NAS algorithm, RankNet's potential misjudgments are inherently mitigated. Specifically, we rely on RankNet's predictions only when neither of the competing models has been trained yet. This strategic usage ensures that the actual impact of any prediction error is reduced, and the overall effectiveness of the NAS procedure remains robust—even more so than what is reflected in this isolated evaluation.
 
@@ -150,8 +159,8 @@ It is important to note that, during the grid search, we deliberately restricted
 \toprule
 Cutoff Epoch & Threshold & Error Rate (\%) & MSE & Time Saved (min) & Time Saved (\%) \\
 \midrule
-10  & 0.33 & 18.99 & 7.15e-04 & 108.35 & 19.48 \\
-11  & 0.33 & 14.71 & 7.65e-04 & 105.51 & 15.28 \\
+10  & 0.33 & 18.99 & 7.5e-02 & 108.35 & 19.48 \\
+11  & 0.33 & 14.71 & 7.65e-02 & 105.51 & 15.28 \\
 \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
 \bottomrule
 \end{tabular}
@@ -184,8 +193,8 @@ No Change Patience & 10 \\
 $\alpha$ (Window Size \%) & 0.30 (Epoch Diminishing Return: 21.0) \\
 $\epsilon$ (Min Relative Improvement) & 0.07 \\
 Error Rate & 22.00\% \\
-RMSE & 2.09$\times$10\textsuperscript{-2} \\
-MSE & 4.36$\times$10\textsuperscript{-4} \\
+RMSE & 2.09$\times$10\textsuperscript{-1} \\
+MSE & 4.36$\times$10\textsuperscript{-2} \\
 Original Training Time & 556.10 minutes ($\approx$9h 16m) \\
 Training Time with Early Stopping & 341.53 minutes ($\approx$5h 41m) \\
 Time Saved & 214.57 minutes \\
@@ -202,7 +211,7 @@ These findings support the effectiveness of performance-based early stopping in 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.85\linewidth]{Pictures/val_accuracy_loss_percentages.png}
-    \caption{Percentage of models falling under various thresholds of projected validation accuracy loss relative to the best observed model.}
+    \caption{Distribution of models based on projected validation accuracy loss.}
     \label{fig:performanceStop}
 \end{figure}
 
@@ -218,24 +227,26 @@ To test this hypothesis, we selected a set of models that were originally traine
 
 \begin{table}[ht]
 \centering
-\begin{tabular}{|c|c|c|p{6cm}|}
+\begin{tabular}{|c|c|c|c|p{8.5cm}}
 \hline
-\textbf{Epochs} & \textbf{Prediction Mistake} & \textbf{Avg. Time Reduction} & \textbf{Notes} \\
+\textbf{Epochs} & \textbf{Prediction Mistake} & \textbf{Avg. Time Reduction} & \textbf{MSE} \\
 \hline
-10 & $\sim$30\% & $\sim$85.24\% & Fastest training, but leads to high prediction errors and noisy rankings due to underfitting. \\
-20 & $\sim$21\% & $\sim$62.12\% & Noticeable improvement in prediction stability; still some inconsistency, but a clear step up from 10 epochs. \\
-30 & $\sim$16\% & $\sim$55\% & Achieves competitive accuracy, close to longer trainings; a strong compromise between performance and efficiency. \\
-50 & $\sim$15\% & $\sim$32.69\% & Very stable predictions with minimal mistakes; however, the time savings are significantly reduced. \\
+10 & $\sim$30\% & $\sim$85.24\% & \( 8.5 \times 10^{-2} \) \\
+20 & $\sim$21\% & $\sim$62.12\% & \( 7.72 \times 10^{-2} \) \\
+30 & $\sim$16\% & $\sim$55\%    & \( 7.70 \times 10^{-2} \) \\
+50 & $\sim$15\% & $\sim$32.69\% & \( 7.60 \times 10^{-2} \) \\
 \hline
 \end{tabular}
-\caption{Comparison of RankNet pairwise accuracy using different training durations with cosine decay}
+\caption{Comparison of  pairwise accuracy using different training durations with cosine decay}
 \label{tab:cosine_decay_results}
 \end{table}
 
 
-As shown in Table~\ref{tab:cosine_decay_results}, training for only \textbf{10 epochs} achieves the greatest average time reduction—over 85\%—but this comes with a high prediction mistake rate of approximately 30\%. This suggests that such a short training duration leads to significant underfitting, resulting in unstable and unreliable performance rankings.
+As shown in Table~\ref{tab:cosine_decay_results}, the mean squared error (MSE) remains relatively consistent across all partial training durations. This indicates that the average difference in the true fitness scores between misranked models does not vary significantly with training length. In other words, this metric does not provide a clear advantage for selecting one training duration over another, as it does not reflect a reduction in the severity of ranking mistakes. As a result, we should mainly focus on the other two parameters, the \textbf{Prediction Mistakes} and the \textbf{Average Time Reduction}
 
-At the other extreme, training for \textbf{50 epochs} yields the most accurate and stable predictions, with only ~15\% mistakes, closely approaching the reliability of the full 70-epoch baseline. However, the time savings at this level are considerably diminished—only around 32%—making it a less attractive option when computational efficiency is critical.
+The training for only \textbf{10 epochs} achieves the greatest average time reduction—over 85\%—but this comes with a high prediction mistake rate of approximately 30\%. This suggests that such a short training duration leads to significant underfitting, resulting in unstable and unreliable performance rankings.
+
+At the other extreme, training for \textbf{50 epochs} yields the most accurate and stable predictions, with only ~15\% mistakes, closely approaching the reliability of the full 70-epoch baseline. However, the time savings at this level are considerably diminished—only around 32\%—making it a less attractive option when computational efficiency is critical.
 
 The intermediate settings of \textbf{20} and \textbf{30 epochs} stand out as promising trade-offs. Training for 20 epochs reduces time by more than 60\%, while cutting prediction mistakes to ~21\%, a notable improvement over the 10-epoch case. Meanwhile, 30 epochs further reduces mistakes to ~16\%, while still preserving over 50\% time savings. This suggests that models trained for 30 epochs achieve nearly the same predictive quality as the 50-epoch variant, but with better computational efficiency.
 
@@ -294,15 +305,15 @@ Table~\ref{tab:combined_optimizations} summarizes the error rates and the corres
 \centering
 \begin{tabular}{|p{4.5cm}|c|c|c|c|}
 \hline
-\textbf{Optimization Strategy} & \textbf{Error Rate (\%)} & \textbf{Average MSE} & \textbf{Speedup (\%)} & \textbf{Baseline epochs} \\ \hline
-Learning Rate Optimization (LR Opt.)         & 21.00  & 7.61e-04 & 62.12 & 20 epochs \\ \hline
-+ Performance Stop                           & 26.00 & 3.23e-04 & 63.19 & 20 epochs \\ \hline
-+ Early Stoppage (Max)                       & 25.00 & 1.44e-04  & 85.00 & 20 epochs \\ \hline
-+ Early Stoppage (Safe)                      & 22.00 & 2.14e-04  & 63.64 & 20 epochs \\ \hline
+\textbf{Optimization Strategy} & \textbf{Error Rate (\%)} & \textbf{MSE} & \textbf{Speedup (\%)} & \textbf{Baseline epochs} \\ \hline
+Learning Rate Optimization (LR Opt.)         & 21.00  & \( 7.72 \times 10^{-2} \) & 62.12 & 20 epochs \\ \hline
++ Performance Stop                           & 26.00 & \( 3.23 \times 10^{-2} \)  & 63.19 & 20 epochs \\ \hline
++ Early Stoppage (Max)                       & 25.00 & \( 1.44 \times 10^{-2} \)   & 85.00 & 20 epochs \\ \hline
++ Early Stoppage (Safe)                      & 22.00 & \( 2.14 \times 10^{-2} \)  & 63.64 & 20 epochs \\ \hline
 \hline
-Learning Rate Optimization (LR Opt.)         & 16.00 & 7.63e-04 & 55.00 & 30 epochs \\ \hline
-+ Performance Stop                           & 17.00 & 2.32e-04 & 64.66 & 30 epochs \\ \hline
-+ Early Stoppage                             & 17.50 & 1.45e-04  & 59.83 & 30 epochs \\ \hline
+Learning Rate Optimization (LR Opt.)         & 16.00 & \( 7.70 \times 10^{-2} \)  & 55.00 & 30 epochs \\ \hline
++ Performance Stop                           & 17.00 & \( 2.32 \times 10^{-2} \)  & 64.66 & 30 epochs \\ \hline
++ Early Stoppage                             & 17.50 & \( 1.45 \times 10^{-2} \)   & 59.83 & 30 epochs \\ \hline
 \end{tabular}
 \caption{Combined Optimization Effects at 20 and 30 Epoch Baselines}
 \label{tab:combined_optimizations}
@@ -327,11 +338,28 @@ These results suggest that:
     \item \textbf{Safer early stoppage thresholds can match performance with minimal sacrifice} in accuracy, making them highly practical.
 \end{itemize}
 
+\vspace{2.5\baselineskip}
 
 \subsection{Final Comparison}
 
-Taking into account the previous experimental results, it remains unclear which individual optimization provides the best overall performance within a fixed time budget. Among the two most dominant techniques, one consistently yields models with lower prediction error, while the other significantly accelerates the search process. This trade-off between accuracy and speed introduces ambiguity when trying to identify the most promising approach.
+Building on the previous experimental results, it remains uncertain which individual optimization technique offers the best overall performance within a fixed time budget. Among the two most prominent strategies, one consistently yields models with lower prediction error, while the other significantly accelerates the search process. This trade-off between accuracy and speed complicates the task of identifying the most effective approach under practical constraints.
 
-To address this, we conduct a comparative experiment where the NAS algorithm is executed independently using each optimized variant. For each run, we collect the set of non-dominated solutions—i.e., the Pareto front—representing the best trade-offs between competing objectives such as model accuracy, memory usage, and inference time. By analyzing and comparing these Pareto-optimal models across techniques, we aim to determine which optimization strategy consistently leads to superior results under resource and time constraints.
+To address this, we conduct a comparative evaluation designed to answer a central question: Which optimization strategy yields the best results within a limited time frame? We execute two independent NAS runs. In the first, we collect the set of dominated solutions—the Pareto front—obtained from a 20-epoch run using early-stopping optimization. In the second, we repeat the process for a 30-epoch run incorporating performance-based stopping. To ensure a fair comparison, both runs are conducted under identical conditions: using RankNet as the surrogate model, enabling memory estimation, and running for a fixed duration of 12 hours.
 
-It is important to note that small variations in outcomes are expected, even when training the same model multiple times with identical data. These deviations can stem from inherent randomness in training procedures (e.g., weight initialization, mini-batch sampling) and should be considered within the bounds of scientific or statistical error. Therefore, our analysis focuses on meaningful performance trends rather than minor fluctuation
+The Pareto-front models from each run consist of architectures that are non-dominated across our key metrics—TFlite test accuracy, RAM usage (which correlates with inference time and energy consumption), and flash memory footprint. In other words, no model on the Pareto front is outperformed by another across all objectives. This definition aligns with the standard concept of Pareto-optimality in multi-objective optimization, where a solution is Pareto-optimal if no objective can be improved without worsening at least one other. \cite{benson2008pareto}
+
+
+As illustrated in Figure~\ref{fig:pareto_plot_comparison}, the models produced using the 30-epoch training strategy consistently dominate those from the 20-epoch run across all evaluated dimensions. Specifically, the 30-epoch models achieve higher TFLite accuracy for a given RAM consumption, as well as better memory efficiency for a fixed level of predictive performance. This indicates a clear advantage in both accuracy and resource trade-offs when training is extended to 30 epochs.
+
+A noteworthy observation is that, regardless of training strategy, all Pareto-optimal models converge around a narrow range of flash memory usage—between 300 and 306 KB. This uniformity suggests that flash memory consumption does not play a major role in differentiating the models in this context and therefore has minimal impact on the overall Pareto front structure.
+
+However, while the 30-epoch models appear to outperform those from the 20-epoch run in nearly every aspect, the observed differences are relatively modest. Given the inherent randomness in deep learning training. Such variations may fall within the bounds of statistical or scientific uncertainty. As a result, although the longer training duration shows a trend toward superior performance, the margin is not large enough to definitively exclude the shorter run. This highlights the importance of evaluating optimization strategies not only for few runs but for multiple runs and datasets.
+
+\begin{figure}[ht]
+    \centering
+    \adjustbox{max width=1.25\textwidth}{
+        \includegraphics{Pictures/pareto_plot_comparison.png}
+    }
+    \caption{Pareto optimal TinyML systems generated using 30-epoch and 20-epoch optimizations}
+    \label{fig:pareto_plot_comparison}
+\end{figure}

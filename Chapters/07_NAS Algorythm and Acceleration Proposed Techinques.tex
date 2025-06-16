@@ -2,7 +2,8 @@
 \label{chap:nas_optimizations}
 
 \begin{sloppypar}
-While black-box Neural Architecture Search (NAS), as described in the Section~\ref{chap:nas}, offers a highly flexible and effective framework for discovering high-performing models, it is also notoriously resource-intensive and time-consuming. These limitations make it challenging to apply in real-world scenarios, particularly on constrained hardware. In this chapter, we introduce a set of optimizations designed to improve the efficiency of black-box NAS, with a focus on accelerating evaluations and reducing the overall search time, without compromising the quality of the discovered architectures.
+While black-box Neural Architecture Search (NAS), as described in the Section~\ref{chap:nas}, offers a highly flexible and effective framework for discovering high-performing models, it is also notoriously resource-intensive and time-consuming. These limitations make it challenging to apply in real-world scenarios, particularly on constrained hardware as many discovered models will not be compatible to some microcontrollers. 
+In this chapter, we present a set of optimization strategies aimed at enhancing the efficiency of black-box neural architecture search (NAS), with a particular focus on accelerating model evaluations and reducing overall search time—while maintaining the quality of the resulting architectures.
 \end{sloppypar}
 
 \section{Memory Estimation}
@@ -11,41 +12,44 @@ As previously discussed, one of the most significant challenges in this work was
 
 This trial-and-error approach proved inefficient and was quickly abandoned. To address this, we developed a memory estimation mechanism capable of predicting the resource consumption of a model based solely on its architectural configuration. This allowed us to pre-screen candidate models and discard those unlikely to meet the deployment constraints, thereby accelerating the NAS process and conserving computational resources.
 
-In addition, based on these memory estimations, we were able to predict secondary metrics such as inference time and current consumption—values that previously required the model to be deployed in order to be measured. This advancement further streamlined the design and evaluation process.
+In addition, based on these memory estimations, we were able to predict secondary metrics such as inference time and energy consumption—values that previously required the model to be deployed in order to be measured. This advancement further streamlined the design and evaluation process.
 
 
-To successfully deploy our neural network on the Arduino Nano 33 BLE Sense, we must adhere to the device's stringent resource constraints—specifically, a maximum of 256\,KB of RAM and 1\,MB of Flash memory. Any model exceeding these limits becomes undeployable, regardless of its theoretical accuracy or performance.
+To successfully deploy our neural network on the Arduino Nano 33 BLE Sense, we must account for the device’s limited usable memory resources—approximately 256KB of RAM and 1MB of Flash, though a portion of this is reserved for system operations, runtime overhead, and supporting libraries. As a result, the effective memory available for model deployment is lower than the hardware maximum. Any model that exceeds these practical limits is considered undeployable, regardless of its theoretical accuracy or performance.
 
-While the most precise method for measuring memory usage involves compiling and deploying the model onto the microcontroller to observe its runtime behavior, this process is extremely time-consuming. This is particularly impractical when evaluating thousands of candidate architectures during Neural Architecture Search (NAS). Consequently, there is a critical need for fast and reliable approximation methods capable of predicting RAM and Flash consumption without requiring actual deployment.
+While the most accurate way to measure memory usage is by compiling and deploying each model onto the microcontroller to observe its actual runtime behavior, this process is highly time-consuming and significantly reduces the number of models that can be evaluated within a given time frame. This is particularly, impractical when evaluating thousands of candidate architectures during Neural Architecture Search (NAS). Consequently, there is a critical need for fast and reliable approximation methods capable of predicting RAM and Flash consumption without requiring actual deployment.
 
 
 Based on prior research \cite{tensorflow_RamEstimation}, \cite{liberis2019neural} , we make reasonable assumptions to model
 memory consumption:
 
-• RAM usage is estimated by analyzing activation tensor sizes during inference, con
-sidering their lifetimes and potential coexistence.
+• RAM usage is estimated by analyzing activation tensor sizes during inference, considering their lifetimes and potential coexistence.
 
 • Flash usage is initially approximated from the number of model parameters, then
 corrected using a regression model to account for format overheads like quantization
 metadata and FlatBuffer structure.
 
-These assumptions allow us to perform fast memory estimations with reasonable accu
-racy, enabling effective filtering and prioritization of architectures before committing to
+These assumptions allow us to perform fast memory estimations with reasonable accuracy, enabling effective filtering and prioritization of architectures before committing to
 the costly deployment step. To improve the quality of these estimates, empirical data
-was collected and regression models were trained to correct for systematic biases in the
-naïve estimators. The resulting tools are embedded in the module, ensuring that only
+was collected and regression models were trained to correct for systematic biases in the naive estimators. The resulting tools are embedded in the module, ensuring that only
 deployable models are selected for further optimization
 
-Although the Arduino Nano 33 BLE Sense provides 1~MB of Flash memory and 256~KB of RAM, the usable memory available for deploying a neural network model is significantly less due to system-level overhead. This overhead arises from several essential components required for model execution and embedded functionality:
+To fully understand the capabilities and resource limitations of our device, we conducted experimental analysis to identify the sources of memory overhead. This overhead arises from several essential components required for model execution and embedded functionality:
 
 \begin{itemize}
     \item \textbf{Flash Memory Overhead:} In addition to the model weights and logic—stored in a \texttt{.h} file converted from a \texttt{.tflite} model and consuming the majority of board's memory, additional consumption arises from:
     \begin{itemize}
+    
         \item \textbf{CMSIS-NN / Inference Functions:} Optimized functions responsible for executing the neural network layers (e.g., \texttt{arm\_nn\_softmax\_common}, \texttt{arm\_depthwise\_conv\_opt}, etc.) are stored in Flash memory. The more complex the model (i.e., more layers or operations), the more Flash these functions consume.
-        \item \textbf{Arduino Sketch Code:} To deploy the model on the board, a sketch is used that includes constant variables, initialized pointers, additional libraries, static variables, and runtime logic. All of these contribute to Flash consumption.
+        
+        \item \textbf{Arduino Sketch Code:} To deploy the model on the board, a sketch is used that includes constant variables, initialized pointers, additional libraries, static variables, and runtime logic. 
+
+        \item \textbf{Embedded Input Data:} Input data used for testing (e.g., sample images) is stored as \texttt{const} arrays in Flash. While this contributes to Flash consumption, it avoids any additional RAM usage beyond the input tensor buffer already managed by the inference engine.
+
     \end{itemize}
 \end{itemize}
 
+\bigskip
 
 \begin{itemize}
     \item \textbf{RAM Overhead:} Beyond the Tensor Arena—which is allocated specifically for intermediate buffers during inference—several other components consume RAM:
@@ -75,13 +79,22 @@ Although the Arduino Nano 33 BLE Sense provides 1~MB of Flash memory and 256~KB 
 Empirical measurements during deployment revealed that, in addition to the model's footprint, the following are typical overheads:
 
 \begin{itemize}
-    \item \textbf{Flash Usage:} \textasciitilde200--210~KB (depending on model size and included libraries).
-    \item \textbf{RAM Usage:} \textasciitilde45--50~KB for the tensor arena and runtime state.
+
+    \item \textbf{Flash Usage:} Approximately 200--210~KB, depending on model complexity, the size of embedded data (e.g., input arrays), and the libraries included in the compiled sketch.
+    
+    \item \textbf{RAM Overhead:} Approximately 45--50~KB is consumed by system components, including the main stack, standard library buffers, RTOS threads, communication drivers, and runtime metadata. The remaining RAM is available for the Tensor Arena used by TensorFlow Lite Micro.
+
 \end{itemize}
 
 
-\subsection{Flash Memory Estimation}
 
+
+
+
+
+
+\subsection{Flash Memory Estimation}
+\label{subsec:flash_memory_estimation}
 Estimating the amount of flash memory needed to deploy a neural network model on a microcontroller is a crucial step in the development of edge computing applications, especially in environments where resources such as memory and processing power are severely limited. Flash memory, typically used as read-only memory (ROM), must store the model's parameters, which include the weights and biases of the neural network. These parameters define the behavior of the model and are essential for its operation during inference. A widely used method to estimate the flash memory requirement is to calculate the total storage needed for all the model's parameters. This involves summing up the memory footprint of each weight and bias, which are usually represented as floating-point or fixed-point numbers. By understanding the total number of parameters and their respective data types, developers can make an informed estimate of the memory space required for storing the model on a microcontroller. \cite{pau2023tiny}.
 
 This method is fast and easy to compute, but it doesn't accurately reflect the size of a fully converted \texttt{.tflite} model due to additional overhead such as:
@@ -184,12 +197,12 @@ To estimate the total maximum RAM required by the entire model, we take the maxi
 
 While the RAM estimation aligns closely with the actual measured RAM, it still tends to underestimate total memory usage due to the aforementioned memory persistence effects.
 
-To better capture this discrepancy, we applied a similar approach as the previous chapter, creating a linear regression model between the Estimated and Measured RAM values. The resulting line—referred to as \textit{LinearRAM}—reveals a consistent pattern in the mismatch, suggesting that a correction factor can be reliably modeled.
+To better capture this discrepancy, we applied a similar approach as in  Section~\ref{subsec:flash_memory_estimation}, creating a linear regression model between the Estimated and Measured RAM values. The resulting line—referred to as \textit{LinearRAM}—reveals a consistent pattern in the mismatch, suggesting that a correction factor can be reliably modeled.
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{Pictures/ram_accurate_vs_measured.png}
-  \caption{Measured RAM vs. Accurate Estimation with Linear Regression Fit}
+  \caption{Linear regression fit between estimated and true RAM consumption.}
   \label{fig:ram-linear-regression}
 \end{figure}
 
@@ -208,7 +221,7 @@ In this work, the supply voltage was fixed at 3.3\,V using the Power Profiler Ki
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{Pictures/Current.png}
-    \caption{Current consumption during repeated model inference operations. Peaks correspond to active computation phases.}
+    \caption{The current consumption observed during repeated model inference operations, with peaks corresponding to the active computation phases.}
     \label{fig:current_profile}
 \end{figure}
 
@@ -238,7 +251,7 @@ Those assumptions were confirmed after our test, finding a Linear corelation bet
 \begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{Pictures/inference_time_regression_plot.png}
-  \caption{Linear Corelation between RAM and inference time.}
+  \caption{Linear Corelation between RAM and Ιnference time.}
   \label{fig:inference time}
 \end{figure}
 

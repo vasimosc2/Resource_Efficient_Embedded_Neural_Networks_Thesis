@@ -89,14 +89,14 @@ The critical components of this deployment are:
     
     At runtime, the pixel values from this array—already quantized and formatted to match the model’s input requirements (e.g., shape, datatype, and scale)—are copied into the input tensor buffer obtained from \texttt{interpreter.input(0)}. This buffer is part of the tensor arena, which resides in RAM. The copying is performed explicitly in a loop or via a call to \texttt{memcpy}, for example:
     
-    \begin{lstlisting}[language=C, caption={Copying input image data from Flash to RAM input tensor}, label=lst:copy_input_tensor]
+    \begin{lstlisting}[language=C, caption={Copying input image data ( test image ) from Flash to RAM input tensor}, label=lst:copy_input_tensor]
     for (int i = 0; i < 3072; i++) {
         input->data.uint8[i] = IMAGE_NAME[i];
     }
     \end{lstlisting}
 
     
-    This means that although the test image consumes no RAM while stored in Flash, it does occupy RAM during inference. Specifically, the input tensor consumes a portion of the tensor arena, which also holds all intermediate activations, output tensors, and temporary buffers required by the model. For example, a \(32 \times 32 \times 3\) image with 8-bit quantization requires exactly 3,072 bytes of RAM during inference.
+    This means that although the test image consumes no RAM while stored in Flash, it does occupy RAM from the Tensor Arena during inference. Specifically, the input tensor consumes a portion of the tensor arena, which also holds all intermediate activations, output tensors, and temporary buffers required by the model. For example, a \(32 \times 32 \times 3\) image with 8-bit quantization requires exactly 3,072 bytes of RAM during inference.
     
     This memory footprint must be considered when allocating the tensor arena. If the input tensor, combined with the rest of the model’s memory requirements, exceeds the available RAM, the inference will fail due to insufficient space. Therefore, even for a predefined input, its RAM usage at runtime directly affects deployment feasibility on memory-constrained microcontrollers.
 
