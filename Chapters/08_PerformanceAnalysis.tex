@@ -1,9 +1,10 @@
 \chapter{Performance Analysis}
 \label{chap:performance_analysis}
 
-In this section, we present the results of our proposed acceleration techniques and detail the fitness function employed consistently across all experiments. The primary objective of the fitness function is to balance predictive performance with hardware efficiency, ensuring that the selected models are not only accurate but also suitable for deployment on resource-constrained devices.
+In this section, we present the results of the proposed optimization techniques in Chapter~\ref{chap:nas_optimizations} and outline the fitness function used consistently throughout all experiments. The fitness function serves as a central evaluation criterion, designed to balance predictive accuracy with hardware efficiency—ensuring that the selected models are not only accurate but also viable for deployment on resource-constrained devices.
 
-As a baseline reference, we consider the unoptimized training setup consisting of 70 epochs. All subsequent optimization strategies aim to reduce the total training time while preserving the relative ranking of model performance. In particular, emphasis is placed on minimizing the risk of misranking high-performing models due to premature stopping or overly aggressive pruning. Maintaining ranking fidelity is crucial to ensure that acceleration techniques do not compromise the overall model selection process.
+As a baseline, we consider the unoptimized training setup involving 70 full epochs, which serves as a reference point for all comparative analyses. The goal of the optimization strategies is to reduce overall training time while preserving the fidelity of model ranking. Particular emphasis is placed on minimizing the risk of misranking high-performing models, which could arise from premature termination or overly aggressive pruning. Preserving ranking consistency is essential to ensure that speed-up techniques do not undermine the integrity of the NAS-driven model selection process.
+
 
 The fitness function used in the Genetic Algorithm, to explore new model is defined as:
 
@@ -12,9 +13,9 @@ The fitness function used in the Genetic Algorithm, to explore new model is defi
 \text{Fitness} =
 \begin{cases}
 \begin{aligned}
-7 \cdot \text{ValidationAcc}_{\text{TFLite}} 
-+ 2 \cdot \left(1 - \dfrac{\text{RAM}}{\text{MaxRAM}}\right) \\
-+ 1 \cdot \left(1 - \dfrac{\text{Flash}}{\text{MaxFlash}}\right),
+70 \cdot \text{Val.Accuracy}
++ 20 \cdot \left(1 - \dfrac{\text{RAM}}{\text{MaxRAM}}\right) \\
++ 10 \cdot \left(1 - \dfrac{\text{Flash}}{\text{MaxFlash}}\right),
 \end{aligned}
 & \text{if } \text{RAM} \leq \text{MaxRAM} \land \text{Flash} \leq \text{MaxFlash} \\
 -1000, & \text{otherwise}
@@ -24,9 +25,14 @@ The fitness function used in the Genetic Algorithm, to explore new model is defi
 
 
 
-This formulation was chosen to explicitly incorporate hardware constraints into the optimization objective. Including this fitness function, we effectively guide the Genetic Algorithm (GA) to prioritize models that are not only accurate but also memory-efficient.
+This fitness function was designed to explicitly incorporate hardware constraints into the optimization objective of the Genetic Algorithm (GA). By weighting both predictive accuracy and resource efficiency, the GA is guided to favor models that are not only accurate but also suitable for deployment on memory-constrained devices.
 
-Notably, although the highest accuracy achieved during training (at 70 epochs) was approximately 60\%, the fitness function allows models with lower accuracy (e.g., around 40\%) to outperform others if they demonstrate significantly lower memory usage. However, by assigning a higher weight (0.7) to the accuracy term in the fitness function, we ensure that performance remains the primary objective. This is especially important considering that accuracy typically ranges from 0.3 to 0.65, while the normalized RAM and Flash components can span from 0 to 0.85. Without the weighted terms, the smallest models would consistently dominate the selection process—regardless of their predictive performance. The chosen weighting strategy ensures that the evolutionary search favors architectures that are not only compact and efficient but also sufficiently accurate for deployment.
+To achieve this, RAM and Flash memory usage are normalized relative to their respective maximum allowable values. The lower the memory consumption, the higher the contribution to the overall fitness score. All three components—validation accuracy of the deployable TFlite model, the normalized RAM usage, and the normalized Flash usage—are scaled to lie within the range \([0,1]\), ensuring a balanced contribution to the final score.
+
+The weights assigned to each term ensure that the fitness score lies within the range \([0,100]\) under valid constraints. In cases where a model exceeds either the maximum RAM or Flash memory budget, it is penalized with a fitness value of \(-1000\). This severe penalty ensures that resource-infeasible models are effectively eliminated from the population and are not propagated to subsequent generations.
+
+
+Notably, although the highest accuracy achieved during training (at 70 epochs) was approximately 60\%, the fitness function allows models with lower accuracy (e.g., around 40\%) to outperform others if they demonstrate significantly lower memory usage. However, by assigning a higher weight to the accuracy term in the fitness function, we ensure that performance remains the primary objective. This is especially important considering that accuracy typically ranges from 0.3 to 0.65, while the normalized RAM and Flash components can span from 0 to 0.85. Without the weighted terms, the smallest models would consistently dominate the selection process—regardless of their predictive performance. The chosen weighting strategy ensures that the evolutionary search favors architectures that are not only compact and efficient but also sufficiently accurate for deployment.
 
 It's important to note that microcontrollers are typically designed for specific tasks within embedded systems, combining processing, memory, and input/output peripherals on a single chip. This design makes them cost-effective and power-efficient for dedicated applications. In such scenarios, as long as the model fits within the available memory constraints of the microcontroller, such as the 256KB SRAM of the Arduino Nano 33 BLE Sense , the exact memory consumption becomes less critical. 
 
@@ -34,7 +40,7 @@ Therefore, the fitness function is weighted to prioritize the validation accurac
 
 In this chapter, we review the results of the optimization algorithms discussed in Chapter~\ref{chap:nas_optimizations}. Many of these techniques aim to reduce the training time of the NAS algorithm while maintaining the integrity of model selection. 
 
-To evaluate the effectiveness of our proposed optimizations, we first conducted a baseline run, which serves as the \textbf{ground truth}. This run explored a set of model configurations without any optimizations applied. Based on these configurations, we then re-trained the same models under a hypothetical scenario where the optimizations had been used to guide the search process. This allowed us to simulate what the search might have explored using our accelerated approach.
+To evaluate the effectiveness of our proposed optimizations, we first conducted a baseline run, which serves as the \textbf{ground truth} with 70-epoch training. This run explored a set of model configurations without any optimizations applied. Based on these configurations, we then re-trained the same models under a hypothetical scenario where the optimizations had been used to guide the search process. This allowed us to simulate what the search might have explored using our accelerated approach.
 
 After re-training, we evaluated the impact of the optimizations in two ways: (1) by comparing the fitness-based rankings derived from the optimized run to those from the ground truth run, quantifying the misranking rate and the severity of ranking errors ( mean square error ); and (2) by measuring the total time that would have been saved had the optimizations been applied during the original search process.
 
@@ -49,9 +55,9 @@ The MSE for misranked pairs is computed as follows:
 
 where \( N \) is the total number of misranking errors, and \( \text{TrueFitness}_i \) and \( \text{TrueFitness}_j \) are the fitness scores of the misranked model pair \( (i, j) \) in the ground truth setup. A higher MSE indicates more severe misrankings, reflecting greater deviation from the ideal model selection.
 
-We deliberately designed our fitness function to produce normalized values ( in the range [0, 10] ) in order to make this metric comparable across experiments and to amplify the penalty for more serious ranking errors. The squaring operation in MSE inherently magnifies the impact of large differences in fitness, which ensures that severe misrankings—those involving models with substantially different real-world performance—are penalized more heavily than smaller, less consequential mistakes.
+The squaring operation in MSE inherently magnifies the impact of large differences in fitness, which ensures that severe misrankings—those involving models with substantially different real-world performance—are penalized more heavily than smaller, less consequential mistakes.
 
-Although the fitness function is normalized between 0 and 10 for consistency across experiments, it is important to consider the absolute performance range of the evaluated models. To provide additional context, we report the fitness scores of the best and worst models prior to normalization. This helps quantify the practical implications of misrankings by illustrating how much real-world performance (e.g., in terms of accuracy or hardware usage) separates the top-performing models from the least efficient ones.
+Although the fitness function lies within the range \([0,100]\), it is important to consider the absolute performance range of the evaluated models. To provide additional context, we report the fitness scores of the best and worst models prior to normalization. This helps quantify the practical implications of misrankings by illustrating how much real-world performance (e.g., in terms of accuracy or hardware usage) separates the top-performing models from the least efficient ones.
 
 \begin{table}[ht]
 \centering
@@ -60,16 +66,16 @@ Although the fitness function is normalized between 0 and 10 for consistency acr
 \toprule
 Model & Raw Fitness Score & Description \\
 \midrule
-Best Model & 5.65 & High accuracy, low memory usage \\
-Worst Model & 4.58 & Low accuracy, high memory \\
+Best Model & 56.5 & High accuracy, low memory usage \\
+Worst Model & 45.8 & Low accuracy, high memory \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-To better interpret the severity of MSE values, we also compute the root mean squared error (RMSE) and express it relative to the raw fitness score range, i.e., \( \text{maxFitness} - \text{minFitness} = 1.07 \). This ratio indicates how large the average prediction error is in relation to the total performance spread among evaluated models:
+To better interpret the severity of MSE values, we also compute the root mean squared error (RMSE) and express it relative to the raw fitness score range, i.e., \( \text{maxFitness} - \text{minFitness} = 10.7 \). This ratio indicates how large the average prediction error is in relation to the total performance spread among evaluated models:
 
 \begin{equation}
-\text{Relative RMSE} = \frac{\text{RMSE}}{5.65 - 4.58} = \frac{\text{RMSE}}{1.07}
+\text{Relative RMSE} = \frac{\text{RMSE}}{56.5 - 45.8} = \frac{\text{RMSE}}{10.7}
 \end{equation}
 
 A small relative RMSE (e.g., under 15\%) implies that, even when misrankings occur, the models involved are very close in terms of real-world performance, suggesting minimal practical impact. Conversely, a large relative RMSE (e.g., above 40\%) indicates that the ranking errors involve models with substantially different fitness, potentially leading to significantly suboptimal deployment decisions. This contextualization allows us to bridge the gap between statistical misranking rates and their real-world consequences.
@@ -79,6 +85,7 @@ A small relative RMSE (e.g., under 15\%) implies that, even when misrankings occ
 
 \section{Memory Estimation Experiment}
 \label{sec:memory_estimation_experiment}
+\TODO{I can do a 10 hour Run maybe this is better}
 To assess the effectiveness of the proposed memory-aware optimization, a dedicated experiment was conducted in which the memory filtering mechanism was deliberately disabled. In this configuration, models exceeding the allowable RAM or flash memory constraints were not filtered out prior to training. Instead, any model violating the hardware limits was penalized post-training by assigning it a fixed fitness value of –1000. The purpose of this experiment was to investigate whether the genetic algorithm (GA) could inherently learn to avoid infeasible models, despite the lack of preemptive filtering.
 
 Following a 4-hour NAS run, it became evident that only a limited number of models were successfully trained. This was primarily due to the fact that models with larger RAM and flash memory requirements consumed significantly more computational time—even for short training durations. In some cases, a single large model required up to four times the training time of a smaller, resource-efficient one (see Table~\ref{tab:taku_models}). This disparity in training time illustrates the inefficiency introduced by allowing oversized models to enter the search process.
@@ -122,20 +129,21 @@ TakuNet\_Mutant\_13 & 0.4719 & 0.4396 & 0.4396 & 0.4367 & adamw & 0.4342 & 0.439
 
 \section{RankNet Experiment}
 \label{sec:ranknet_experiment}
+
 In this experiment, we analyzed the outcomes of a large-scale NAS run that lasted approximately 10 hours. Given that our selection process is based on tournament comparisons, it is nearly impossible to recreate the exact pairwise matchups observed during the original run. To ensure transparency and reproducibility, we retained both the fitness scores and the parameter configurations of every model evaluated.
 
-To evaluate the predictive performance of the RankNet model, we conducted \textbf{10{,}000 random pairwise comparisons} between different neural architectures, previously unseen to the RankNet. Our model was trained based on and initial population of \textbf{10 models} creating 45 pairs for training. In each comparison, the objective was to predict which of the two models would achieve superior performance. Given the randomness inherent in such pairings, a baseline model based on random guessing would be expected to achieve \textbf{50\% accuracy}. Despite this, \textbf{RankNet correctly identified the better-performing model in $\sim$81\% of the comparisons}, demonstrating strong predictive capability. Additionally, it achieved a mean squared error (MSE) of \textbf{1.71$\times$10\textsuperscript{-2}} on the \textit{normalized fitness function}, corresponding to a root mean squared error (RMSE) of \textbf{0.13}. This translates to a \textbf{relative RMSE of 9.0\%}, indicating that even in cases where RankNet misranks two models, their actual performance is typically very close—thus limiting the potential negative impact of such errors (see Fig.~\ref{fig:RankNetComparison}).
+To evaluate the predictive performance of the RankNet model, we conducted \textbf{10{,}000 random pairwise comparisons} between different neural architectures, previously unseen to the RankNet. Our model was trained based on and initial population of \textbf{10 models} creating 45 pairs for training. In each comparison, the objective was to predict which of the two models would achieve superior performance. Given the randomness inherent in such pairings, a baseline model based on random guessing would be expected to achieve \textbf{50\% accuracy}. Despite this, \textbf{RankNet correctly identified the better-performing model in $\sim$83\% of the comparisons}, demonstrating strong predictive capability. Additionally, it achieved a mean squared error (MSE) of \textbf{1.03} on the \textit{normalized fitness function}, corresponding to a root mean squared error (RMSE) of \textbf{10.7}. This translates to a \textbf{relative RMSE of 9.6\%}, indicating that even in cases where RankNet misranks two models, their actual performance is typically very close—thus limiting the potential negative impact of such errors (see Fig.~\ref{fig:RankNetComparison}).
 
 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=1.05\linewidth]{Pictures/RankNetComparison2.png}
+    \includegraphics[width=1.05\linewidth]{Pictures/RankNetComparison3.png}
     \caption{RankNet tournament evaluation results, across 10,000 model matchup.}
     \label{fig:RankNetComparison}
 \end{figure}
 
 
-These results highlight the strong predictive capability of the RankNet model. Achieving an $\sim$81\% accuracy in pairwise comparisons represents a substantial improvement over the 50\% accuracy expected from random guessing. In ranking tasks, such a margin is considered highly significant, especially when coupled with a very low mean squared error. Even relatively small improvements above chance can yield meaningful benefits in optimization scenarios \cite{freund1999large}, making this level of performance particularly impaction.
+These results highlight the strong predictive capability of the RankNet model. Achieving an $\sim$83\% accuracy in pairwise comparisons represents a substantial improvement over the 50\% accuracy expected from random guessing. In ranking tasks, such a margin is considered highly significant, especially when coupled with a very low mean squared error. Even relatively small improvements above chance can yield meaningful benefits in optimization scenarios \cite{freund1999large}, making this level of performance particularly impaction.
 
 Moreover, in our NAS algorithm, RankNet's potential misjudgments are inherently mitigated. Specifically, we rely on RankNet's predictions only when neither of the competing models has been trained yet. This strategic usage ensures that the actual impact of any prediction error is reduced, and the overall effectiveness of the NAS procedure remains robust—even more so than what is reflected in this isolated evaluation.
 
@@ -146,11 +154,11 @@ While it is difficult to precisely quantify the overall speedup gained by integr
 
 In this experiment, building upon previous observations, we aimed to stop the training of specific models early in order to reduce computational cost when it was likely that their final performance would be suboptimal. As previously discussed, the first few epochs of training tend to be the most informative. If a model fails to reach a predefined validation accuracy threshold by a given cutoff epoch, it is unlikely to outperform others later on. To exploit this, we designed a threshold-based early stopping strategy: during training, if the validation accuracy at a predefined cutoff epoch does not surpass a certain threshold, the training is terminated early. This approach simulates an informed pruning of under-performing models.
 
-To evaluate the effectiveness of this method, we performed a grid search over various cutoff epochs and validation accuracy thresholds. For each configuration, we computed the estimated fitness using a normalized function that incorporates accuracy, RAM usage, and flash memory requirements (see Equation~\ref{eq:fitness_function}). We then used a tournament-style comparison to evaluate how closely these early estimates matched the final results of fully trained models. The configurations were assessed based on their prediction error rate and the total training time saved.
+To evaluate the effectiveness of this method, we performed a grid search over various cutoff epochs and validation accuracy thresholds. For each configuration, we computed the estimated fitness using the Equation~\ref{eq:fitness_function}. We then used a tournament-style comparison to evaluate how closely these early estimates matched the final results of fully trained models. The configurations were assessed based on their prediction error rate and the total training time saved.
 
 As shown in Table~\ref{tab:early_stopping_results}, the best configuration with an error rate below 19\% achieved a training time reduction of up to 19.48\%. This demonstrates that a well-calibrated threshold-based early stopping strategy can substantially reduce training costs with minimal impact on model selection accuracy.
 
-It is important to note that, during the grid search, we deliberately restricted the range of both cutoff epochs and validation accuracy thresholds to cases where the validation accuracy exceeded 25\%. This constraint was applied to minimize noise in the comparisons, as models performing significantly below this level tended to produce unstable and uninformative results in the tournament-based evaluation. Furthermore, we found that similar optimal ranges of cutoff epochs and thresholds consistently appeared across multiple independent training runs and over different time periods. This recurring pattern reinforces the validity of our approach and supports the assumption that early validation performance serves as a reliable proxy for final model quality.
+It is important to note that, during the grid search, we deliberately restricted the range of both cutoff epochs and validation accuracy thresholds to cases where the model misranking did not exceed the 25\% mark. This constraint was applied to minimize noise in the comparisons, as models performing significantly below this level tended to produce unstable and uninformative results in the tournament-based evaluation. Furthermore, we found that similar optimal ranges of cutoff epochs and thresholds consistently appeared across multiple independent training runs and over different time periods. This recurring pattern reinforces the validity of our approach and supports the assumption that early validation performance serves as a reliable proxy for final model quality.
 
 
 \begin{table}[ht]
@@ -159,8 +167,8 @@ It is important to note that, during the grid search, we deliberately restricted
 \toprule
 Cutoff Epoch & Threshold & Error Rate (\%) & MSE & Time Saved (min) & Time Saved (\%) \\
 \midrule
-10  & 0.33 & 18.99 & 7.5e-02 & 108.35 & 19.48 \\
-11  & 0.33 & 14.71 & 7.65e-02 & 105.51 & 15.28 \\
+10  & 0.33 & 18.99 & 7.5 & 108.35 & 19.48 \\
+11  & 0.33 & 14.71 & 7.65 & 105.51 & 15.28 \\
 \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
 \bottomrule
 \end{tabular}
@@ -181,7 +189,7 @@ As depicted in the figure, approximately 10\% of the models incurred less than a
 
 To evaluate the efficiency gains of this approach, we applied a performance-based early stopping strategy across all discovered models. Assuming uniform epoch duration the un-optimized version required \textbf{556.10 minutes} of training. When Performance optimization was activated, a total of \textbf{214.57 minutes} of training time was saved, reducing the total compute time from \textbf{556.10 minutes} to \textbf{341.53 minutes}—a \textbf{38.59\%} reduction.
 
-To assess the trade-off in decision quality, we conducted \textbf{10,000 random pairwise comparisons} between model candidates using both full and early-stopped fitness evaluations. As shown in Table~\ref{tab:performance_stopping_summary}, the early-stopped models resulted in a decision error rate of \textbf{22.00\%}, indicating that in the majority of cases, early termination preserved correct model ranking. Additionally, the mean squared error (MSE) between full and early-stopped validation accuracies was \textbf{4.36$\times$10\textsuperscript{-4}}, corresponding to a root mean squared error (RMSE) of \textbf{2.09$\times$10\textsuperscript{-2}}, which is approximately \textbf{$\approx 19.53\%$} relative to the observed range in validation accuracy. This suggests that, even when discrepancies occur, they are typically minor in practical terms.
+To assess the trade-off in decision quality, we conducted \textbf{10,000 random pairwise comparisons} between model candidates using both full and early-stopped fitness evaluations. As shown in Table~\ref{tab:performance_stopping_summary}, the early-stopped models resulted in a misranking error rate of \textbf{22.00\%}, indicating that in the majority of cases, early termination preserved correct model ranking. Additionally, the mean squared error (MSE) between full and early-stopped validation accuracies was \textbf{4.36}, corresponding to a root mean squared error (RMSE) of \textbf{2.09}, which is approximately \textbf{$\approx 19.53\%$} relative to the observed range in validation accuracy. This suggests that, even when discrepancies occur, they are typically not major in practical terms.
 
 \begin{table}[ht]
 \centering
@@ -193,8 +201,8 @@ No Change Patience & 10 \\
 $\alpha$ (Window Size \%) & 0.30 (Epoch Diminishing Return: 21.0) \\
 $\epsilon$ (Min Relative Improvement) & 0.07 \\
 Error Rate & 22.00\% \\
-RMSE & 2.09$\times$10\textsuperscript{-1} \\
-MSE & 4.36$\times$10\textsuperscript{-2} \\
+RMSE & 2.09 \\
+MSE & 4.36 \\
 Original Training Time & 556.10 minutes ($\approx$9h 16m) \\
 Training Time with Early Stopping & 341.53 minutes ($\approx$5h 41m) \\
 Time Saved & 214.57 minutes \\
@@ -222,7 +230,7 @@ These findings support the effectiveness of performance-based early stopping in 
 
 As previously discussed, cosine learning rate decay is theoretically expected to converge faster than traditional schedules such as \textbf{Step Decay}, \textbf{Constant Learning Rate}, or \textbf{Linear Decay} \cite{li2019exponential}  \cite{kim2021automated}. The motivation behind this experiment is to investigate whether we can achieve reliable performance predictions with fewer than the 70 training epochs we currently use as a baseline.
 
-To test this hypothesis, we selected a set of models that were originally trained for 70 epochs. These models were then \textit{re-trained from scratch} using the cosine decay schedule but with \textbf{reduced epoch budgets}: specifically 10, 20, 30, and 50 epochs. For each of these training durations, we performed \textbf{10,000 random pairwise comparisons} to assess whether early-stopped models could still accurately reflect performance rankings.
+To test this hypothesis, we selected a set of models that were originally trained for 70 epochs. These models were then \textit{re-trained from scratch} using the cosine decay schedule but with \textbf{reduced epoch budgets}: specifically 10, 20, 30, and 50 epochs. For each of these training durations, we performed \textbf{10,000 random pairwise comparisons} to assess whether limited trained models could still accurately reflect performance rankings.
 
 
 \begin{table}[ht]
@@ -231,10 +239,10 @@ To test this hypothesis, we selected a set of models that were originally traine
 \hline
 \textbf{Epochs} & \textbf{Prediction Mistake} & \textbf{Avg. Time Reduction} & \textbf{MSE} \\
 \hline
-10 & $\sim$30\% & $\sim$85.24\% & \( 8.5 \times 10^{-2} \) \\
-20 & $\sim$21\% & $\sim$62.12\% & \( 7.72 \times 10^{-2} \) \\
-30 & $\sim$16\% & $\sim$55\%    & \( 7.70 \times 10^{-2} \) \\
-50 & $\sim$15\% & $\sim$32.69\% & \( 7.60 \times 10^{-2} \) \\
+10 & $\sim$30\% & $\sim$85.24\% & \( 8.5 \) \\
+20 & $\sim$21\% & $\sim$62.12\% & \( 7.72 \) \\
+30 & $\sim$16\% & $\sim$55\%    & \( 7.70 \) \\
+50 & $\sim$15\% & $\sim$32.69\% & \( 7.60 \) \\
 \hline
 \end{tabular}
 \caption{Comparison of  pairwise accuracy using different training durations with cosine decay}
@@ -242,7 +250,7 @@ To test this hypothesis, we selected a set of models that were originally traine
 \end{table}
 
 
-As shown in Table~\ref{tab:cosine_decay_results}, the mean squared error (MSE) remains relatively consistent across all partial training durations. This indicates that the average difference in the true fitness scores between misranked models does not vary significantly with training length. In other words, this metric does not provide a clear advantage for selecting one training duration over another, as it does not reflect a reduction in the severity of ranking mistakes. As a result, we should mainly focus on the other two parameters, the \textbf{Prediction Mistakes} and the \textbf{Average Time Reduction}
+As shown in Table~\ref{tab:cosine_decay_results}, the mean squared error (MSE)  remains relatively consistent across all partial training durations. This indicates that the average difference in the true fitness scores between misranked models does not vary significantly with training length. In other words, this metric does not provide a clear advantage for selecting one training duration over another, as it does not reflect a reduction in the severity of ranking mistakes. As a result, we should mainly focus on the other two parameters, the \textbf{Prediction Mistakes} and the \textbf{Average Time Reduction}
 
 The training for only \textbf{10 epochs} achieves the greatest average time reduction—over 85\%—but this comes with a high prediction mistake rate of approximately 30\%. This suggests that such a short training duration leads to significant underfitting, resulting in unstable and unreliable performance rankings.
 
@@ -250,22 +258,69 @@ At the other extreme, training for \textbf{50 epochs} yields the most accurate a
 
 The intermediate settings of \textbf{20} and \textbf{30 epochs} stand out as promising trade-offs. Training for 20 epochs reduces time by more than 60\%, while cutting prediction mistakes to ~21\%, a notable improvement over the 10-epoch case. Meanwhile, 30 epochs further reduces mistakes to ~16\%, while still preserving over 50\% time savings. This suggests that models trained for 30 epochs achieve nearly the same predictive quality as the 50-epoch variant, but with better computational efficiency.
 
-\textbf{In summary, training for 20 or 30 epochs appears to offer the most effective balance between prediction reliability and efficiency.} The choice between the two can be guided by specific application needs—whether prioritizing speed (20 epochs) or slightly higher accuracy (30 epochs).
+\textbf{In summary, training for 20 or 30 epochs appears to offer the most effective balance between prediction reliability and efficiency.}
 
 These findings confirm that while cosine decay facilitates faster convergence compared to traditional learning rate schedules, a minimum training threshold remains essential for learning meaningful representations. Importantly, this also highlights the potential of cosine-based scheduling to accelerate neural architecture search (NAS) workflows by \textbf{reducing evaluation costs} without severely compromising the quality of performance ranking.
 
 
 \section{Final Combined Optimization Experiment}
 
-To evaluate the cumulative impact of the proposed optimization techniques, we conducted a final Neural Architecture Search (NAS) run in which all strategies were applied simultaneously. These included:
+Having individually evaluated the effectiveness of each proposed optimization technique, we observed that each one contributed meaningful performance improvements. This naturally led to the hypothesis that combining all strategies in a single Neural Architecture Search (NAS) run could yield even better results. The goal of this final experiment was to investigate whether these optimizations would complement each other—potentially producing a synergistic effect—or whether some techniques might interfere or become redundant when applied together. In this section, we present the outcomes of this combined optimization effort and analyze how the interplay between techniques influenced the final performance.
+
+Below is a brief summary of each optimization technique included in the combined experiment:
 
 \begin{itemize}
-    \item \textbf{Memory-Aware Filtering:} Prevents training of models that exceed microcontroller RAM and Flash constraints.
-    \item \textbf{Cosine Learning Rate Decay:} Enables faster convergence, allowing models to reach informative performance with fewer epochs.
-    \item \textbf{Performance-Based Early Stopping:} Halts training of underperforming models early to save computation time.
-    \item \textbf{RankNet Selection:} Prioritizes promising models for evaluation based on predicted relative performance.
+
+    \item \textbf{Memory-Aware Filtering:} Accurately estimates each model’s RAM and Flash memory consumption prior to training. Models exceeding the microcontroller's memory constraints are discarded early, saving both training time and ensuring deployability.
+
+    \item \textbf{RankNet Selection:} Prioritizes promising models for training based on predicted relative performance, effectively avoiding time spent on models unlikely to perform well.
+
+    \item \textbf{Cosine Learning Rate Decay:} Facilitates faster and smoother convergence by gradually decreasing the learning rate, enabling models to reach informative performance levels with fewer epochs.
+
+    \item \textbf{Performance-Based Stopping:} Terminates training for models that show little or no improvement over a specified number of epochs, preventing unnecessary computation.
+
+    \item \textbf{Early Stopping:} Halts training of under-performing models before the maximum epoch limit is reached, further reducing computation time.
+
 \end{itemize}
 
+
+
+Among the applied strategies, the optimization techniques can be categorized into two distinct groups based on when they operate during the NAS process: those applied \textbf{before training} and those applied \textbf{during training}.
+
+\textbf{Pre-Training Optimizations} include \textbf{Memory-Aware Filtering} and \textbf{RankNet Selection}. These techniques act as a first line of defense, eliminating models that are either infeasible or unlikely to perform well—\emph{before} any training resources are consumed.
+
+\begin{itemize}
+    \item \textbf{Memory-Aware Filtering} plays a crucial role in enforcing hardware constraints upfront. By accurately estimating the RAM and Flash memory consumption of each model, it discards those that exceed the microcontroller's limits. As shown in Section~\ref{sec:memory_estimation_experiment}, this filtering significantly boosts NAS efficiency by focusing only on deployable candidates.
+
+    \item \textbf{RankNet Selection} uses a learned surrogate model to predict relative model performance without requiring training. By ranking architectures based on these predictions, it helps the NAS prioritize promising candidates and avoid training clearly suboptimal models. Section~\ref{sec:ranknet_experiment} demonstrates that even modest prediction accuracy from RankNet can lead to considerable time savings.
+\end{itemize}
+
+Together, these pre-training techniques form an efficient \emph{external filtering mechanism} that enhances the scalability and resource efficiency of the NAS process without interfering with the training procedure itself. Moreover, since \textbf{Memory-Aware Filtering} and \textbf{RankNet Selection} operate independently and address orthogonal concerns—hardware feasibility and performance potential, respectively—they can be applied concurrently in the pipeline to maximize early-stage pruning effectiveness.
+
+
+\textbf{In-Training Optimizations}, on the other hand, directly influence how models are trained and evaluated. These include:
+
+\begin{itemize}
+    \item \textbf{Cosine Learning Rate Decay}
+    \item \textbf{Performance-Based Early Stopping}
+    \item \textbf{Threshold-Based Early Stoppage}
+\end{itemize}
+
+These strategies aim to accelerate convergence and reduce training time by dynamically adjusting or halting the training process based on performance trends. However, because they interact with the training dynamics, their combined effects must be carefully evaluated to avoid redundancy or conflict. For instance, the effectiveness of early stopping is highly dependent on the training duration and the learning rate schedule—especially when Cosine Decay is applied.
+
+To assess the impact of combining these in-training techniques, we performed experiments starting from two different baseline training durations (20 and 30 epochs), and progressively applied the following:
+
+\begin{itemize}
+    \item \textbf{Learning Rate Optimization (LR Opt.)}
+    \item \textbf{Performance-Based Early Termination (Perf. Stop)}
+    \item \textbf{Threshold-Based Early Stoppage (Early Stop)}
+\end{itemize}
+
+This structure allowed us to isolate and analyze the contribution of each technique, both individually and in combination, across varying training regimes.
+
+
+
+\begin{comment}
 
 Among the applied strategies, two optimizations operate primarily outside the training loop: \textbf{Memory-Aware Filtering} and \textbf{RankNet Selection}. These techniques focus on reducing unnecessary training by identifying unpromising or infeasible models before any computational resources are spent on them.
 
@@ -277,27 +332,18 @@ It is important to distinguish between optimization techniques that operate inde
 
 The \textbf{external strategies}, namely \textbf{Memory-Aware Filtering} and \textbf{RankNet Selection}, are inherently orthogonal to the training process and can be safely applied in any setting. These techniques focus on early elimination of infeasible or unpromising architectures before training even begins, and therefore do not interfere with the dynamics of the training process itself.
 
-In contrast, the \textbf{training-level optimizations}—specifically \textbf{Cosine Learning Rate Decay},\textbf{Performance-Based Early Stopping} and \textbf{Early Stoppage}—directly affect the way individual models are trained and evaluated. As such, their interaction must be empirically validated to ensure they work well in tandem. For example, while early stopping provides substantial speedup, its effectiveness depends heavily on the training length and convergence behavior introduced by the learning rate schedule.
-
-\begin{comment}
-
-Initially we decide to keep our Learning Rate Optimization at 20 epochs, are perviously discussed, this optimization achieved a 21\% error rate but also a 62.12\% speed up. Now when we added ( + ) the performance stop on top of it what we figure out is that that the error rate increase slightly at 24\% while it speed up the previous time 2.82\% -> 63.19\% from the initial starting training time. Then we applied the early stoppage optimization, in that we manage to see the error rate rise to 25\% but getting a crazy 85\%  -> 94.32\% speedup, while there was the possibility to achieve a 22\% error rate with a 4\% speedup -> 63.64\% with the early stoppage as well.
-
-
-
-On the other hand starting from the training set to 30 epochs, we initially had an error rate 16\% and a speedup of 55\% . By appling in this the performance stoppage optimization we saw the error rate barely exceeding the 17\% , which makes sense as the slower the training , the more presice the upadtes, and the speedup gain was 18\% -> 62.66\% from the starting training time. On the other hand appling the early stoppage in this case gave the saem error rate as before (16.9 \%) but with only 3\% increase -> 55.83\%
-
-
-Our findings indicate that \textbf{applying performance-based early stopping to 30-epoch cosine-trained models yields the most efficient and accurate configuration}. In this setting, models converge sufficiently for the early stopping criteria to make reliable decisions. Conversely, applying early stopping to shorter runs—such as 20 epochs—often led to premature termination of models that might have otherwise reached competitive performance. This suggests that performance-based stopping should be used selectively, only when the base training duration provides enough time for meaningful learning curves to emerge.
-\end{comment}
-
+In contrast, the \textbf{training-level optimizations}—specifically \textbf{Cosine Learning Rate Decay}, \textbf{Performance-Based Early Stopping} and \textbf{Early Stoppage}—directly affect the way individual models are trained and evaluated. As such, their interaction must be empirically validated to ensure they work well in tandem. For example, while early stopping provides substantial speedup, its effectiveness depends heavily on the training length and convergence behavior introduced by the learning rate schedule.
 
 To evaluate the impact of combining various optimization strategies, we conducted experiments starting from two different baseline training durations: 20 epochs and 30 epochs. In each case, we progressively applied three types of optimizations:
+
 \begin{itemize}
     \item \textbf{Learning Rate Optimization (LR Opt.)}
     \item \textbf{Performance-Based Early Termination (Perf. Stop)}
     \item \textbf{Threshold-Based Early Stoppage (Early Stop)}
 \end{itemize}
+
+\end{comment}
+
 
 Table~\ref{tab:combined_optimizations} summarizes the error rates and the corresponding training speedup at each stage for both baseline configurations.
 
@@ -306,37 +352,69 @@ Table~\ref{tab:combined_optimizations} summarizes the error rates and the corres
 \begin{tabular}{|p{4.5cm}|c|c|c|c|}
 \hline
 \textbf{Optimization Strategy} & \textbf{Error Rate (\%)} & \textbf{MSE} & \textbf{Speedup (\%)} & \textbf{Baseline epochs} \\ \hline
-Learning Rate Optimization (LR Opt.)         & 21.00  & \( 7.72 \times 10^{-2} \) & 62.12 & 20 epochs \\ \hline
-+ Performance Stop                           & 26.00 & \( 3.23 \times 10^{-2} \)  & 63.19 & 20 epochs \\ \hline
-+ Early Stoppage (Max)                       & 25.00 & \( 1.44 \times 10^{-2} \)   & 85.00 & 20 epochs \\ \hline
-+ Early Stoppage (Safe)                      & 22.00 & \( 2.14 \times 10^{-2} \)  & 63.64 & 20 epochs \\ \hline
+Learning Rate Optimization (LR Opt.)         & 21.00  & \( 7.72  \) & 62.12 & 20 epochs \\ \hline
++ Performance Stop                           & 26.00 & \( 3.23  \)  & 63.19 & 20 epochs \\ \hline
++ Early Stoppage (Max)                       & 25.00 & \( 1.44  \)   & 85.00 & 20 epochs \\ \hline
++ Early Stoppage (Safe)                      & 22.00 & \( 2.14  \)  & 63.64 & 20 epochs \\ \hline
 \hline
-Learning Rate Optimization (LR Opt.)         & 16.00 & \( 7.70 \times 10^{-2} \)  & 55.00 & 30 epochs \\ \hline
-+ Performance Stop                           & 17.00 & \( 2.32 \times 10^{-2} \)  & 64.66 & 30 epochs \\ \hline
-+ Early Stoppage                             & 17.50 & \( 1.45 \times 10^{-2} \)   & 59.83 & 30 epochs \\ \hline
+Learning Rate Optimization (LR Opt.)         & 16.00 & \( 7.70  \)  & 55.00 & 30 epochs \\ \hline
++ Performance Stop                           & 17.00 & \( 2.32  \)  & 64.66 & 30 epochs \\ \hline
++ Early Stoppage                             & 17.50 & \( 1.45  \)   & 59.83 & 30 epochs \\ \hline
 \end{tabular}
 \caption{Combined Optimization Effects at 20 and 30 Epoch Baselines}
 \label{tab:combined_optimizations}
 \end{table}
 
+\subsection*{Performance Summary: 20-Epoch Baseline}
 
-\subsection*{Discussion}
+We began with a baseline training duration of 20 epochs and progressively applied the training-time optimizations in three stages:
 
-For the 20-epoch baseline, applying the learning rate optimization alone already provided a significant speedup of over 62\% with a moderate error rate of 21\%. Adding the performance-based stopping method slightly increased the error to 24\%, but resulted in a small gain in speedup, pushing it to 63.19\%.
-
-The inclusion of early stoppage further amplified the benefits. In the most aggressive configuration, the error rose to 25\% but with an outstanding speedup of over 85\%. Alternatively, a safer threshold setting achieved 22\% error with a 63.64\% speedup—balancing performance and computational savings effectively.
-
-For the 30-epoch baseline, the learning rate optimization alone achieved a strong 55\% speedup with a low 16\% error. Adding the performance stop mechanism led to a negligible increase in error (17.1\%) while improving the overall speedup to 62.66\%. Finally, applying early stoppage resulted in almost no additional error (16.9\%) and a minor speedup increase to 55.83\%.
-
-\subsection*{Insights}
-
-These results suggest that:
 \begin{itemize}
-    \item \textbf{Early stoppage offers dramatic computational savings} when error tolerance is flexible.
-    \item \textbf{Performance-based stopping provides consistent, moderate improvements} in both speed and accuracy filtering.
-    \item \textbf{The effectiveness of each method depends on the baseline epoch length}—aggressive methods yield larger gains when the starting budget is smaller (e.g., 20 epochs).
-    \item \textbf{Safer early stoppage thresholds can match performance with minimal sacrifice} in accuracy, making them highly practical.
+    \item \textbf{Learning Rate Optimization (LR Opt.):}  
+    Achieved a substantial speedup of \textbf{62\%} while maintaining a moderate error rate of \textbf{21\%}.
+    
+    \item \textbf{+ Performance-Based Stopping (Perf. Stop):}  
+    Adding this second optimization slightly increased the error to \textbf{26\%}, but provided a minor gain in speedup, reaching \textbf{63.19\%}.
+    
+    \item \textbf{+ Threshold-Based Early Stoppage (Early Stop):}  
+    \begin{itemize}
+        \item \emph{Aggressive threshold:} Error increased to \textbf{25\%}, but speedup improved significantly to over \textbf{85\%}.
+        \item \emph{Conservative threshold:} Achieved a better balance with an error of \textbf{22\%} and a speedup of \textbf{63.64\%}.
+    \end{itemize}
 \end{itemize}
+
+These results show that combining all three techniques can lead to large reductions in training time, with a tunable trade-off between speed and accuracy depending on the aggressiveness of early stopping.
+
+\vspace{1em}
+\subsection*{Performance Summary: 30-Epoch Baseline}
+
+We repeated the same optimization layering using a 30-epoch baseline:
+
+\begin{itemize}
+    \item \textbf{Learning Rate Optimization (LR Opt.):}  
+    Delivered a strong speedup of \textbf{55\%} while keeping the error low at \textbf{16\%}.
+    
+    \item \textbf{+ Performance-Based Stopping (Perf. Stop):}  
+    Led to a small increase in error to \textbf{17\%}, with speedup improving to \textbf{64.66\%}.
+    
+    \item \textbf{+ Threshold-Based Early Stoppage (Early Stop):}  
+    Resulted in a negligible change in error (\textbf{16.9\%}) and a modest speedup boost to \textbf{59.83\%}.
+\end{itemize}
+
+\vspace{2.5\baselineskip}
+
+\subsection*{Key Findings}
+
+As the results indicate, adding either \textbf{Performance-Based Stopping} or \textbf{Threshold-Based Early Stoppage} on top of \textbf{Learning Rate Optimization} consistently improves training efficiency. However, it is also evident that these two techniques cannot be applied simultaneously, as they both target early termination but with different heuristics and decision criteria.
+
+Interestingly, the most effective configurations differed depending on the baseline training duration:
+
+\begin{itemize}
+    \item For the \textbf{20-epoch} setting, the combination of \textbf{Learning Rate Optimization + Early Stoppage} delivered the best balance between accuracy and speedup.
+    \item For the \textbf{30-epoch} baseline, the combination of \textbf{Learning Rate Optimization + Performance-Based Stopping} proved most effective.
+\end{itemize}
+
+Given that these two configurations emerged as the most promising in their respective scenarios, we proceeded to conduct a targeted comparison experiment to determine which approach offers better overall performance when evaluated under the same conditions.
 
 \vspace{2.5\baselineskip}
 
@@ -363,3 +441,20 @@ However, while the 30-epoch models appear to outperform those from the 20-epoch 
     \caption{Pareto optimal TinyML systems generated using 30-epoch and 20-epoch optimizations}
     \label{fig:pareto_plot_comparison}
 \end{figure}
+
+
+\clearpage
+
+\section{Post-Training Quantization}
+
+To assess the impact of post-training quantization on model performance, we compared the test accuracy of each float32 Keras model before and after conversion to the TensorFlow Lite (TFLite) format using full integer quantization. The TFLite conversion was performed with a representative dataset for calibration, as recommended by TensorFlow's official guidelines~\cite{tensorflow2023quantization}.
+
+To ensure that the results were generalizable and not influenced by randomness, we conducted the experiment on 100 different models. For each model, we computed the relative accuracy change using the following formula:
+
+\[
+\text{Accuracy Loss (\%)} = \frac{\text{Best Test Accuracy} - \text{TFLite Test Accuracy}}{\text{Best Test Accuracy}} \times 100
+\]
+
+Overall, the quantized models exhibited minimal degradation in accuracy. The average accuracy loss across all 100 models was approximately \textbf{0.25\%}. In most cases, the difference was less than 1\%, and in a few instances, the quantized TFLite models slightly outperformed their original float32 versions, possibly due to beneficial effects introduced during calibration or rounding.
+
+These results support the conclusion that post-training quantization, when guided by a representative dataset, provides a highly effective means of optimizing neural networks for deployment on resource-constrained devices such as the Arduino Nano BLE 33 Sense. Given the consistently low accuracy loss, we can be confident that the quantized models retain the performance characteristics of their original versions. Consequently, it is reasonable to omit separate accuracy evaluations on the quantized models during deployment, thereby streamlining the workflow and reducing development time without compromising performance.

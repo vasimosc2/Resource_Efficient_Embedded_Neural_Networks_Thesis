@@ -7,7 +7,8 @@ The core design goal of TakuNet is to minimize the number of parameters and comp
 
 This architecture has been used as a template because, according to recent studies, it requires significantly fewer parameters for a given dataset compared to other common architectures such as SqueezeNet and MobileNet \cite{TakuNet}. This makes it more feasible to develop a model that fits within our deployment environment.
 
-This architecture is used throughout the NAS algorithm with the goal of identifying the optimal hyperparameters and optimizers for each layer. In this thesis, no additional layers are introduced; instead, only the existing parameters are shuffled. This decision was made due to time constraints, as introducing new layers would have significantly expanded the search space and increased the computational complexity of the NAS process.
+This architecture is used throughout the NAS algorithm with the goal of identifying the optimal hyperparameters and optimizers for each layer. In this thesis, no additional layers are introduced; instead, only the layers parameters are tuned. This decision was driven primarily by the limited time budget available for the NAS process, which was constrained to a few hours of execution. Expanding the search space to include architectural changes—such as adding new layers—would have significantly increased the complexity and duration of the search. Additionally, introducing extra layers could risk generating models that exceed the resource limits of the target embedded device. For the available search time, exploring a wide range of parameters within a fixed architecture was considered both computationally feasible and sufficiently challenging.
+
 
 We begin with an overview of the high-level components of TakuNet, followed by a detailed breakdown of its internal building blocks. Additionally, we discuss the model’s memory-aware design, training-time regularization strategies, and how it integrates with a NAS framework. Finally, we explain the deployment process and analyze key performance metrics, including floating point operations (FLOPs), memory footprint, and quantized model accuracy.
 
@@ -21,6 +22,8 @@ The goal is to integrate architectural efficiency, automated design exploration 
 An illustration of our Architecture can be depicted in Figure~\ref{fig:TakuNet}
 
 \section{Modular Building Blocks}
+
+To promote reusability, clarity, and deployment efficiency, the architecture is structured around a set of \textbf{modular building blocks}. Each block is designed to perform a well-defined function—such as normalization, feature extraction, or activation shaping—while remaining compatible with the resource constraints of embedded devices. The following subsections describe these building blocks in detail.
 
 
 \subsection{Normalization Block}
@@ -37,9 +40,38 @@ The Normalization Block consists of the following layers:
 \begin{itemize}
 
     \item \textbf{Batch Normalization:} This layer is applied immediately after the convolutional operation. Its primary purpose is to normalize the intermediate activations by adjusting and scaling them such that they have zero mean and unit variance across the mini-batch. This normalization mitigates the issue of \textit{internal covariate shift}, where the distribution of inputs to each layer changes during training, thus destabilizing the learning process. By maintaining consistent activation distributions, Batch Normalization allows the network to use higher learning rates, accelerates convergence, and provides a mild regularization effect that can reduce the need for other forms of regularization such as dropout \cite{BatchNorm}.
+    
+    The operation is typically defined as:
+
+    \[
+    \hat{x}_i = \frac{x_i - \mu_{\mathcal{B}}}{\sqrt{\sigma^2_{\mathcal{B}} + \epsilon}}, \quad y_i = \gamma \hat{x}_i + \beta
+    \]
+    
+    where $x_i$ is the activation for sample $i$ in the mini-batch $\mathcal{B}$, $\mu_{\mathcal{B}}$ and $\sigma^2_{\mathcal{B}}$ are the batch mean and variance, $\epsilon$ is a small constant for numerical stability, and $\gamma$, $\beta$ are learnable scale and shift parameters.
+    
+    \textit{Example:} For a mini-batch of convolution outputs $x = [-1, 3, 7, 9]$, we compute the mean $\mu = 4.5$ and variance $\sigma^2 = 14.75$. The normalized values are then:
+    
+    \[
+    \hat{x} = \left[\frac{-1 - 4.5}{\sqrt{14.75}}, \frac{3 - 4.5}{\sqrt{14.75}}, \frac{7 - 4.5}{\sqrt{14.75}}, \frac{9 - 4.5}{\sqrt{14.75}}\right] \approx [-1.43, -0.39, 0.65, 1.17]
+    \]
+    
+    This example illustrates how Batch Normalization transforms the raw activations into a distribution with mean 0 and variance 1, enabling faster and more stable learning.
 
     
     \item \textbf{ReLU6 Activation:} Following normalization, a ReLU6 non-linearity is applied. This is a variant of the standard ReLU function that caps the output at 6. By limiting the activation range to $[0, 6]$, ReLU6 enhances robustness to activation outliers and facilitates quantization-aware training. On devices with limited numerical precision (e.g., 8-bit microcontrollers), this bounded range leads to more accurate and efficient quantization \cite{ConvNetworksMobileNets}.
+
+    The ReLU6 function is defined as:
+    \[
+    \text{ReLU6}(x) = \min(\max(0, x), 6)
+    \]
+    
+    \textit{Example:} Consider the outputs from a previous Batch Normalization layer: $[-2.1, 0.5, 4.3, 6.7, 9.0]$. Applying ReLU6 yields:
+    \[
+    \text{ReLU6}([-2.1, 0.5, 4.3, 6.7, 9.0]) = [0, 0.5, 4.3, 6.0, 6.0]
+    \]
+    
+    This example shows how ReLU6 clips all negative values to zero and caps all values above 6, maintaining the output within a range that is well-suited for fixed-point representation in low-precision hardware.
+    
 \end{itemize}
 
 \subsection{Stem Block}

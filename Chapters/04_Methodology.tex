@@ -1,9 +1,6 @@
 \chapter{Methodology and Tools}
 \label{chap:Methodology}
 
-
-
-
 \section{Hardware and Software Tools}
 
 Our methodology relies on a combination of software frameworks for machine learning and a target embedded hardware platform. We describe the tools and platforms used below.
@@ -29,9 +26,72 @@ TFLite Micro is a highly optimized inference engine tailored for memory-limited 
 
 For the target hardware platform, we selected the \textbf{Arduino Nano 33 BLE Sense}, one of the most widely used microcontrollers for embedded machine learning applications. A detailed description of the deployment procedure, along with the specific constraints of the device, is provided in the \hyperref[chap:DeploymentEnvironment]{relevant chapter}.
 
-
 \section{System Architecture}
 
+When applying Neural Architecture Search (NAS) to microcontroller deployment, the workflow typically follows a specific pipeline, illustrated in Figure~\ref{fig:architectural_pipeline}.
+
+During each iteration of the NAS process, a candidate neural network model is generated. This model is trained and evaluated on a validation dataset. Then, it is converted into a TensorFlow Lite (\texttt{.tflite}) format and subsequently into a C header file. This conversion is necessary to enable deployment on microcontrollers through environments such as Arduino.
+
+It is important to note that the \texttt{.tflite} version of a model may not behave identically to its original Keras counterpart. This discrepancy is primarily caused by the conversion process, which often includes optimizations such as \textit{quantization}, \textit{operator fusion}, and other \textit{graph transformations} designed to reduce model size and improve inference efficiency on embedded hardware.
+
+Among these, \textbf{quantization} is the most impactful. It involves converting the original 32-bit floating-point weights and activations into lower precision formats such as \texttt{int8} or \texttt{float16}, depending on the chosen quantization scheme. Each format offers different trade-offs:
+
+\begin{itemize}
+    \item \textbf{Full Integer Quantization (int8)}: Converts all weights and activations to 8-bit integers. This significantly reduces memory and computational requirements and is supported by most microcontrollers. However, it can introduce approximation errors due to reduced numerical precision.
+    
+    \item \textbf{Float16 Quantization}: Converts weights to 16-bit floating point values while typically leaving activations in \texttt{float32}. It provides a balance between reduced model size and higher numerical fidelity but requires hardware support for float16 inference.
+\end{itemize}
+
+Therefore, it is essential to \textbf{re-evaluate the model’s accuracy after conversion} to confirm that the \texttt{.tflite} version performs similarly to the original model. In practice, when using full integer quantization with a properly selected representative dataset, the accuracy loss is often negligible \cite{tensorflow2023quantization}.
+
+After post-conversion validation, the model is deployed to the microcontroller, where key hardware-related metrics such as \textit{RAM usage}, \textit{Flash memory consumption}, and \textit{energy consumption} are measured. These hardware measurements are incorporated into the model’s overall fitness evaluation, guiding the NAS algorithm toward architectures that are not only accurate but also resource-efficient.
+
+This process is iteratively repeated using an evolutionary algorithm until a predefined time limit is reached. Upon termination, the best models are presented as a \textbf{Pareto front}, representing the trade-off between competing objectives such as predictive accuracy and hardware efficiency.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.6\linewidth]{Pictures/OldMethodology.png}
+    \caption{Typical NAS pipeline for deployment on microcontrollers.}
+    \label{fig:architectural_pipeline}
+\end{figure}
+
+
+
+\subsection{Timing of the Processes}
+
+To achieve satisfactory performance, the training process typically requires at least 70 epochs, which takes approximately 20 to 30 minutes, depending on the model architecture and dataset size. The subsequent conversion and quantization steps generally take between \textit{X} and \textit{Y} minutes, taking into consideration the conversion and the procedure to test the accuracy. Model deployment—including compilation, tensor allocation, and inference execution (detailed further in Chapter~\ref{chap:DeploymentEnvironment})—requires approximately 3 minutes. Since the measurement of hardware metrics (such as RAM, Flash, and energy consumption) is integrated into the deployment step, its overhead is considered negligible.
+
+These values provide useful insight into where optimization efforts should be focused. In particular, reducing the time required for training is crucial for increasing the number of models that can be evaluated within a given time frame. This, in turn, enhances the effectiveness of the NAS process by allowing a broader exploration of the search space, thereby increasing the likelihood of discovering high-performing architectures.
+
+To address these limitations, several workflow optimizations were introduced. These are discussed in the following subsection.
+
+\subsection{Optimized Version}
+Given the timing constraints outlined above, we adopted several strategies to streamline the NAS process:
+
+\begin{itemize}
+    \item \textbf{Training Time Reduction}: We explored techniques to shorten the training phase, including early stopping and training-time proxies.
+
+    \item \textbf{Proxy-Based Evaluation}: To reduce the deployment cost for each model, we developed lightweight proxies to estimate hardware performance (e.g., memory usage or inference latency) without any deployment. These proxies allowed to evaluate and compare models without the additional overhead.
+    
+    \item \textbf{Development Conversion}: Without the need of deployment each model, we did not have to convert the non-Pareto Front models into .tflite model. This saved the conversion time for the vast majority of models.
+    
+    \item \textbf{Deployed Model Accuracy}: We incoperate techniques to make the quantization as efficient as possible enabling to trust post-deployment behavior without having to test every version extensively
+    
+\end{itemize}
+
+A visual summary of the improved workflow is shown in Figure~\ref{fig:workflow_optimization}.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.6\linewidth]{Pictures/NewMethodology.png}
+    \caption{Optimized NAS pipeline for deployment on microcontrollers.}
+    \label{fig:workflow_optimization}
+\end{figure}
+
+
+
+\begin{comment}
 The overall system is designed to automatically search for a resource-efficient convolutional neural network (CNN) architecture and deploy it on a microcontroller. Figure~\ref{fig:architectural_pipeline} outlines the methodology pipeline, which consists of the following stages: 
 
 \begin{enumerate}
@@ -44,12 +104,20 @@ The overall system is designed to automatically search for a resource-efficient 
 
 Each stage is described below and will be explained in specific chapter.
 
+
+\TODO{Here change the image to be a loop, also add rough timing to show how much time is spent in each stage}
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.6\linewidth]{Pictures/Architecture.png}
     \caption{Architectural pipeline}
     \label{fig:architectural_pipeline}
 \end{figure}
+    
+\end{comment}
+
+
+
+
 
 
 

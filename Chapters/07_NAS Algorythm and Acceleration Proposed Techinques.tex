@@ -259,18 +259,22 @@ Those assumptions were confirmed after our test, finding a Linear corelation bet
 
 
 
-\section{Model Comparison}
-After the creation of the models in each new generation in the GA, we face the challenge on how to correctly choose the best models as parents for the upcoming generations and how to accelerate this procedure. So in the section the Tournament Selection and RankNet will be explained on how they tackle those issues. 
+\section{Selection Strategies: Tournament Selection and RankNet}
+
+Once new models are generated in each generation of the Genetic Algorithm (GA), a critical step follows: determining which models should be selected as parents for the next generation. This selection process directly impacts the algorithm’s ability to converge efficiently toward optimal solutions, while avoiding pitfalls such as premature convergence or stagnation.
+
+In this section, we examine two approaches designed to address this challenge: Tournament Selection, a traditional yet effective evolutionary strategy, and RankNet, a neural network-based ranking model. Each method tackles the problem of model evaluation and selection from a different perspective—one prioritizing simplicity and diversity preservation, the other aiming to accelerate selection through learned preference prediction. Their roles, mechanisms, and trade-offs are discussed in detail below.
 
 \subsection{Tournament Selection}
-Tournament Selection (TS) is a genetic operator in which a small subset of individuals is chosen at random and the fittest among them is selected as a parent \cite{hussain2020trade}. 
-Concretely, one chooses a tournament size \textit{k} and repeatedly samples \textit{k} individuals from the population. The individual with the highest fitness in each sampled group is declared the winner and used for reproduction \cite{hussain2020trade}.
+Tournament Selection (TS) is a commonly used genetic selection operator in evolutionary algorithms. It addresses the fundamental challenge of balancing selective pressure toward high-fitness individuals with the maintenance of population diversity, which is crucial for avoiding premature convergence.
 
-Tournament selection inherently preserves population diversity and thus supports generalization. Because selection is based on competition within small random samples, occasionally sub-optimal individuals can win and propagate their genes \cite{hussain2020trade}.
+In TS, a small subset of individuals is chosen uniformly at random from the population, and the fittest among them is selected as a parent \cite{hussain2020trade}. This process is repeated until the desired number of parents is selected. The number of individuals in each group, known as the tournament size \textit{k}, directly controls the selection pressure: a larger \textit{k} favors the fittest individuals more strongly, while a smaller \textit{k} introduces more randomness and promotes diversity.
 
-In effect, TS avoids the extreme elitism of always picking the single best, which can lead to premature convergence. A well-designed selection should maintain diversity to avoid getting stuck in local optima \cite{filipovic2003fine}.
+Unlike elitist strategies that always select the top-performing individuals, TS introduces a probabilistic component. Occasionally, sub-optimal individuals can win a tournament and propagate their genetic material, which helps maintain genetic diversity and encourages exploration of the solution space \cite{hussain2020trade}. This stochasticity is particularly important in avoiding overfitting and escaping local optima \cite{filipovic2003fine}.
 
-By keeping a variety of architectures in the gene pool, TS enables the GA to explore multiple promising regions of the search space. This broader search helps prevent overfitting to any one metric and tends to produce more robust CNN designs.
+Moreover, TS is computationally efficient and highly amenable to parallelization. It does not require sorting or cumulative fitness calculations, making it attractive for large-scale or real-time applications.
+
+By maintaining a diverse gene pool and enabling exploration across multiple promising regions of the search space, TS helps evolutionary algorithms discover robust and generalizable solutions. In the context of neural architecture search, this translates to architectures that generalize better across datasets and tasks, rather than overfitting to a single performance metric.
 
 
 
@@ -278,19 +282,27 @@ By keeping a variety of architectures in the gene pool, TS enables the GA to exp
 
 \subsection{RankNet}
 
-In our initial approach, we trained all candidate models and then applied tournament selection (TS) to compare their performance. The top-performing models were subsequently selected to form the next generation. Through experimentation, we found that fully training each model before applying tournament selection was highly time-consuming, especially when many models were ultimately discarded. To address this inefficiency, we introduced \textit{RankNet}, a predictive model designed to estimate the relative performance of candidates without requiring any training.
+In our initial approach, we fully trained all candidate models before applying Tournament Selection (TS) to compare their performance. The top-performing models were then selected to form the next generation. However, through experimentation, we observed that this strategy was highly time-consuming, particularly because a large number of models were eventually discarded after evaluation. This inefficiency motivated us to introduce \textbf{RankNet}, a predictive model designed to estimate the relative performance of candidate architectures without requiring any training. By leveraging RankNet, we aimed to accelerate the selection process by prioritizing the most promising models early on, thus significantly reducing computational overhead.
 
 \textbf{RankNet} is a pairwise ranking model originally developed for learning-to-rank tasks (e.g. search result ranking). It uses a shared neural network to map each input (here, an architecture embedding) to a score, then models the probability that one item is better than another by a sigmoid on the score difference \cite{RankNet}.
 
 A key enabler for RankNet in NAS is a fixed-length embedding of each architecture that captures its structure. Recent works use graph-based embeddings; for example, Graph2Vec treats a neural network’s computational DAG as a “document” of rooted subgraphs (analogous to words) and learns a vector representation such that architectures with similar subgraph patterns are mapped close together in embedding space \cite{RankNet}.
 
-Unlike graph-based embeddings (e.g., Graph2Vec), we use a handcrafted, lightweight embedding derived from the NAS search space parameters. Each architecture is represented as a fixed-size vector containing:
+Unlike graph-based embedding methods such as \textit{Graph2Vec}, which represent neural architectures as graphs and require complex graph encoders to learn latent representations, our approach utilizes a \textbf{lightweight, handcrafted embedding} specifically tailored to our NAS search space. This decision was motivated by the need for interpretability, computational efficiency, and tight integration with predictive models such as RankNet.
+
+Each architecture is represented as a fixed-size vector constructed from structured, normalized parameters extracted directly from its configuration. The embedding comprises:
+
 \begin{itemize}
-    \item Normalized hyperparameters (e.g., filter counts, kernel sizes, strides) from all the blocks of the architecutre.
-    \item One-hot encoded optimizer choices (SGD or AdamW),to be able to estimate even which optimized might fit better to the dataset.
+    \item \textbf{Normalized architectural hyperparameters}, including:
+    \begin{itemize}
+        \item The number of filters, kernel sizes, and strides from the convolutional and depthwise convolutional layers across the stem, stages, and refiner blocks.
+        \item The number of stages and blocks, controlling the architecture’s depth and granularity.
+        \item Downsampling parameters such as pooling size and stride, which influence spatial resolution.
+    \end{itemize}
+    \item \textbf{One-hot encoded optimizer choices} (SGD or AdamW), allowing the model to also capture training-related configurations. This enables RankNet to infer which optimizer might better suit the architecture or dataset.
 \end{itemize}
 
-This approach is computationally efficient and aligns with our fixed architecture template.
+All numerical features are normalized to ensure that they lie on similar scales, improving the learning behavior of the predictive model. While simpler than graph-based embeddings, this handcrafted vector (of length 15) effectively captures both structural and training-related characteristics. It provides RankNet with a compact yet expressive input for estimating the relative performance of candidate architectures, without requiring full model training or complex processing.
 
 Once the models are embedded, a RankNet model is trained on a set of fully evaluated networks. Rather than regressing absolute accuracy values, RankNet learns to predict *relative* performance: given a pair of architecture embeddings, it estimates the probability that one outperforms the other. The model itself uses a shared 3-layer MLP (64 $\rightarrow$ 32 $\rightarrow$ 16 units) to process each architecture embedding. A sigmoid output predicts the probability that one model outperforms another, given their embedding difference:
 \begin{equation}
@@ -340,11 +352,16 @@ These mechanisms help RankNet adapt over time and increase the reliability of it
 
 \section{Speed-Up in Training}
 
-Once a model is selected—either as part of the initial population or through evolutionary selection—it must undergo full training to evaluate its true performance. Given the potentially large number of candidate architectures evaluated during the search, reducing training time becomes crucial for overall efficiency. Therefore, we implemented several optimization strategies to accelerate the training process, without significantly compromising the quality of the resulting models. These strategies aim to minimize unnecessary computational overhead, enabling faster feedback loops within the NAS cycle and more rapid convergence.
+After a model is selected—either from the initial population or through evolutionary selection—it must be trained to convergence to accurately assess its performance. However, given the potentially large number of candidate architectures evaluated throughout the search process, the cumulative training cost can become a significant bottleneck.
+
+To address this challenge, we implemented a series of optimization strategies aimed at accelerating model training without substantially compromising final model quality. These strategies focus on reducing unnecessary computational overhead, shortening feedback loops within the NAS cycle, and promoting faster convergence. By streamlining the training phase, we improve the overall efficiency and scalability of the architecture search process.
+
+
+
 
 \subsection{Performance STOP}
 \label{sec:performance_stop}
-To reduce the training cost in Neural Architecture Search (NAS), we introduce two early stopping criteria based on the validation performance trajectory of candidate architectures. These rules help terminate unpromising models before exhausting the full training budget.
+To reduce training costs in Neural Architecture Search (NAS), we introduce two early stopping criteria based on the validation performance trajectory of candidate architectures. These rules enable the early termination of unpromising models, thereby conserving computational resources without significantly affecting selection quality..
 
 Let \( A(t) \) denote the validation accuracy at epoch \( t \), and let \( T \) be the total number of epochs.
 
@@ -367,72 +384,43 @@ We define two criteria:
 \end{itemize}
 
 
-These complementary criteria allow for early termination of underperforming models based on either slow progress or complete stagnation. Empirical evaluations across various NAS runs with different training budgets (e.g., 30, 50, 70 epochs) revealed that this strategy consistently reduces training time without degrading the fidelity of model selection. Inspired by recent NAS literature that advocates for efficient search through performance-based early termination \cite{li2020random}, we incorporated both rules into our pipeline.
+These complementary criteria allow for the early termination of under-performing models based on either slow progress or complete stagnation. Empirical evaluations across various NAS runs with different training budgets (e.g., 30, 50, 70 epochs) revealed that this strategy consistently reduces training time without degrading the fidelity of model selection. Inspired by recent NAS literature advocating for efficient search via performance-based early stopping \cite{li2020random}, we incorporated both rules into our pipeline.
 
-After extensive experimentation, we identified the following parameter configuration as the most effective trade-off between training efficiency and selection reliability:
-
-\begin{itemize}
-  \item \textbf{Patience} \( \tau = 4 \): Maximum number of epochs allowed without improvement.
-  \item \textbf{Window size} \( \alpha = 0.25 \): Fraction of total epochs used for evaluating diminishing returns.
-  \item \textbf{Minimum relative improvement} \( \epsilon = 0.05 \): Threshold below which training is stopped.
-\end{itemize}
-
-This configuration significantly reduces the average training time per model while maintaining a low misranking error and preserving the integrity of the NAS process.
-
-\begin{comment}
-In many cases, if the validation accuracy does not show meaningful improvement after a certain number of epochs, training can be safely stopped early. The rationale is that even with additional training, the model’s performance is unlikely to increase substantially, and therefore its overall fitness score will remain largely unchanged. This idea is supported by recent NAS studies that implement early termination strategies to speed up the search process without compromising model selection accuracy \cite{li2020random}. By terminating such models early, we avoid wasted computation while still preserving a reliable basis for comparison with other candidate architectures. This strategy helps reduce the total search time while maintaining the fairness and effectiveness of the NAS process.
-\end{comment}
+The specific values for the parameters \( \tau \), \( \alpha \), and \( \epsilon \) play a crucial role in balancing training speed-up against the risk of misranking high-performing models. Rather than selecting these values arbitrarily, we perform a thorough grid search to identify optimal configurations that offer strong trade-offs between efficiency and reliability. This empirical tuning ensures that our early stopping criteria remain robust across repeated runs with the same training budget.
 
 
 
-
-
-
-
-
-\begin{comment}
-    
-
-
-\subsection{Early Stopping}
-\TODO{Read this to see if it is good enough}
-Research indicates that during CNN training, the initial few epochs often yield the most significant gains in model learning, strongly shaping the network’s eventual accuracy. In other words, a large portion of a CNN’s final validation performance is determined early in training. The following are key findings from credible sources that support this idea.
-
-In an analysis of “critical learning periods,” the authors found that “the first few epochs are critical for the creation of strong connections” in a neural network, after which these connections “do not appear to change during additional training.” They conclude that this initial learning phase “plays a key role in determining the outcome of the training process.” In practice, most of the network’s representational capacity and generalization ability is established in these early epochs \cite{achille2017critical}
-
-In Figure~\ref{fig:val_accuracy}, the normalized validation accuracy of several \texttt{TakuNet} models is shown across training epochs. It is evident that for all four models, the biggest part of the final validation accuracy is reached within the first few epochs. Specifically, by epoch 5 out of 30—that is, just \( \frac{5}{30} \times 100 = 16.7\% \) of the total training time—each model already achieves $\sim 70\%$ of its eventual accuracy and by epoch 10 out of 30—that is, just \( \frac{10}{30} \times 100 = 33.4\% \)  of the total training time—each model already achieves $\sim 80\%$ of its eventual accuracy . This highlights the efficiency of early training and suggests that prolonged training may offer diminishing returns.
-
-In order to speed up the entire NAS algorithm, a Custom Callback method was introduced, which measured the validation accuracy of the model at the most important epochs. If the validation accuracy did not exceed a specific threshold, the algorithm abandons the model as it is pointless to spend more training time to a non-optimal model based on its constraints.
-\end{comment}
 
 
 
 \subsection{Early Stopping}
 \label{sec:early_stopping}
 
-Extensive research has shown that the early stages of convolutional neural network (CNN) training contribute disproportionately to a model's eventual performance. In particular, the first few epochs are often decisive in shaping the network's representational capacity and generalization ability.
+Extensive research has shown that the early stages of training in convolutional neural networks (CNNs) play a disproportionately important role in shaping a model’s final performance. In particular, the initial epochs often establish the core representational capacity of the network and largely determine its generalization behavior.
 
-A notable study on “critical learning periods” reports that “the first few epochs are critical for the creation of strong connections,” which “do not appear to change during additional training” \cite{achille2017critical}. The authors conclude that this early phase plays a central role in determining the final outcome of training. Empirically, this suggests that much of a CNN’s final validation accuracy is achieved early in training, and that continued training yields diminishing returns.
+A notable study on “critical learning periods” reports that “the first few epochs are critical for the creation of strong connections,” which “do not appear to change during additional training” \cite{achille2017critical}. The authors conclude that this early phase is central to the learning process and heavily influences the model’s final outcome. Empirically, this translates to much of a CNN’s eventual validation accuracy being attained early in training, with subsequent epochs providing only marginal improvements.
 
-Figure~\ref{fig:val_accuracy} illustrates this effect for several \texttt{TakuNet} models. The normalized validation accuracy curves reveal that:
+Figure~\ref{fig:val_accuracy} illustrates this phenomenon for several \texttt{TakuNet} models. The normalized validation accuracy curves reveal that:
 \begin{itemize}
   \item By epoch 5 out of 30 (just \( \frac{5}{30} \times 100 = 16.7\% \) of the total training time), each model achieves approximately 70\% of its final validation accuracy.
-  \item By epoch 10 (33.4\% of training), the models have already reached around 80\% of their eventual performance.
+  \item By epoch 10 (33.4\% of training), models typically reach around 80\% of their eventual performance.
 \end{itemize}
 
-These observations highlight the efficiency of early training and support the use of early stopping mechanisms to reduce unnecessary computation.
+These observations highlight the efficiency of early training and provide strong motivation for the use of early stopping mechanisms. More importantly, they inspired us to investigate whether models that perform poorly in the early epochs could be confidently identified and excluded from full training. This insight laid the foundation for our performance-based stopping criteria, which aim to cut short the training of under-performing architectures—saving significant computational resources without compromising the quality of the search.
 
-To leverage this behavior in our NAS pipeline, we introduced a custom callback mechanism that monitors validation accuracy at a strategic checkpoint. If the accuracy fails to exceed a predefined threshold by a specific fraction of the training process, the model is deemed unpromising and discarded early. Formally, let \( A(t) \) denote the validation accuracy at epoch \( t \), and let \( T \) be the total number of training epochs. We define an early termination condition as:
+To leverage this behavior in our NAS pipeline, we introduced a custom callback mechanism that monitors validation accuracy at a strategic checkpoint. If the validation accuracy fails to exceed a predefined threshold by a specific fraction of the training process, the model is deemed unpromising and its training is cut early. Formally, let \( A(t) \) denote the validation accuracy at epoch \( t \), and let \( T \) be the total number of training epochs. We define an early termination condition as:
 
 \[
 A(t) < A_{\min} \quad \text{where} \quad t = \lfloor \beta \rfloor
 \]
 
-Here, \( \beta \in (0,T) \) represents the early evaluation point, and \( A_{\min} \) is the minimum acceptable validation accuracy at that point.
+Here, \( \beta \in (0,1) \) represents the early evaluation point (as a fraction of total training), and \( A_{\min} \) is the minimum acceptable validation accuracy at that checkpoint.
 
-After extensive experimentation across multiple runs and training durations, we found that this early stopping rule was effective in filtering out weak models without degrading overall NAS performance. It significantly accelerated the search process by terminating unpromising architectures early, thereby saving substantial computation while maintaining model selection quality.
+Empirical analysis across different search runs and training budgets confirmed the effectiveness of this rule in identifying weak models early. By eliminating such architectures before completing the full training cycle, we were able to substantially reduce computational overhead while preserving the quality and reliability of model selection in the NAS process.
 
-Notably, we observed that the optimal values for the evaluation point \( \beta \) and the minimum acceptable accuracy \( A_{\min} \) vary depending on the total number of training epochs. However, for any fixed number of training epochs, these values remained stable and consistent across experiments. This indicates that early stopping parameters can be reliably tuned for each training schedule and reused without the need for frequent adjustment.
+
+Notably, we observed that the optimal values for the evaluation point \( \beta \) and the minimum acceptable accuracy \( A_{\min} \) depend on the total training budget. That is, different training durations (e.g., 30, 50, or 70 epochs) may require different early stopping thresholds to maintain selection reliability. However, for any given training schedule, the chosen parameters remained stable and reproducible across multiple independent NAS runs. This consistency suggests that early stopping criteria can be effectively calibrated once per training regime and then reused across searches, without the need for frequent re-tuning.
+
 
 
 
@@ -448,7 +436,14 @@ Notably, we observed that the optimal values for the evaluation point \( \beta \
 
 \subsection{Learning Rate Scheduling}
 
-To accelerate convergence and improve generalization, we employed a cosine annealing learning rate schedule with a linear warm-up phase of 5 epochs. This strategy adjusts the learning rate dynamically across training: starting from a small value, rising linearly during warm-up, and then decaying smoothly according to a cosine function relative to the total number of epochs. 
+One of the most important factors influencing the training dynamics of deep neural networks is the learning rate. It controls the step size taken during gradient descent and directly affects how quickly and effectively a model converges. A poorly chosen learning rate can lead to slow training, suboptimal convergence, or even complete instability. Conversely, an appropriate learning rate schedule can significantly improve both training speed and final performance.
+
+In practice, even fixed learning rates—if well-tuned—can lead to strong results, especially when training for a large number of epochs. However, static learning rates often fail to adapt to the changing optimization landscape over time. Early in training, large updates are generally beneficial for escaping sharp minima and accelerating exploration. Later, smaller learning rates are preferable for fine-tuning and convergence.
+
+To balance these needs, we adopted a dynamic learning rate strategy that combines a linear warm-up phase with cosine annealing. The learning rate starts from a low initial value and increases linearly over the first 5 epochs (warm-up), then gradually decays following a cosine curve relative to the total number of training epochs.
+
+This scheduling approach, inspired by the method introduced in \cite{loshchilov2016sgdr}, helps stabilize early training and encourages smoother convergence. The cosine decay promotes better generalization by allowing the model to settle into flatter, wider optima that are less sensitive to parameter noise.
+
 
 The cosine function used ,inspired by \cite{loshchilov2016sgdr} : 
 
@@ -467,9 +462,10 @@ where:
 
 Cosine learning rate schedules have been widely adopted in modern image classification models such as ResNet, DenseNet, and MobileNet, and are considered state-of-the-art for datasets like CIFAR-10 and CIFAR-100~\cite{lewkowycz2021decay}. Studies show that cosine decay leads to faster convergence and slightly improved final accuracy compared to traditional step-based schedules.
 
-As illustrated in Figure~\ref{fig:val_accuracy_diff_epochs}, for a TakuNet model, increasing the number of training epochs does not significantly improve validation accuracy, given the Learning Rate Scheduling technique used. This saturation effect aligns with the theoretical behavior of cosine decay: once the learning rate approaches zero, further updates become minimal. Given that each epoch takes approximately one minute to complete, it is computationally efficient to limit training to around 10 epochs—achieving nearly optimal results in a fraction of the training time and is sufficient to be able to compare models.
+As illustrated in Figure~\ref{fig:val_accuracy_diff_epochs}, for a  random TakuNet model, increasing the number of training epochs does not significantly improve validation accuracy, given the Learning Rate Scheduling technique used. This saturation effect aligns with the theoretical behavior of cosine decay: once the learning rate approaches zero, further updates become minimal.
 
-As a result, experiments where conducted to find the sweet spot of reducing the number of epochs while retaining  as low as possible the correct prediction on which model is better than the other
+This observation motivated us to investigate the optimal number of training epochs that would strike a balance between maximizing speed-up and minimizing misranking error within our NAS pipeline.
+To this end, we conducted a series of experiments aimed at identifying the sweet spot where training time could be significantly reduced, while still preserving high reliability in predicting which models outperform others.
 
 \begin{figure}[ht]
     \centering
@@ -477,3 +473,16 @@ As a result, experiments where conducted to find the sweet spot of reducing the 
     \caption{Normalized Validation accuracy(based on highest recorder accuracy) of TakuNet trained for different number of epochs }
     \label{fig:val_accuracy_diff_epochs}
 \end{figure}
+
+\section{Post training Optimization}
+
+% For additional technical context, consult the official guide at:
+% https://ai.google.dev/edge/litert/models/post_training_quantization
+
+In this work, the trained neural networks are converted from Keras models to TensorFlow Lite (TFLite) format using full integer quantization, enabling deployment on memory-constrained embedded devices such as the Arduino Nano BLE 33 Sense. While the original Keras models operate in 32-bit floating-point precision, the TFLite conversion process maps both weights and activations to 8-bit integers. This reduction in numerical precision can, in theory, lead to minor accuracy degradation.
+
+Quantization may introduce rounding errors in arithmetic operations and discretization effects during inference, especially near activation boundaries. Furthermore, optimized TFLite kernels for layers such as depthwise convolutions or batch normalization may behave slightly differently from their float32 counterparts in Keras. These differences, though usually subtle, can affect model outputs.
+
+To mitigate such effects and preserve the model's predictive performance, we follow the post-training quantization procedure recommended by Google’s official guidelines~\cite{tensorflow2023quantization}. Specifically, we supply a representative dataset during the quantization step. This dataset, drawn from the same distribution as the training and validation data, is used to calibrate the dynamic range of the activations, ensuring that the int8 quantized model accurately reflects the statistical properties of the original float32 model.
+
+Using this method, we aimed to ensure that the accuracy of the quantized TFLite model remains equivalent to that of its original float32 counterpart. As a result, we are able to safely omit re-evaluating the model's accuracy on the embedded device itself, thus saving time during deployment. Instead, we rely on the model's validation accuracy prior to quantization for performance comparisons, assuming that the post-quantization accuracy loss is negligible—as confirmed both by our empirical results and the recommended quantization procedure.

@@ -18,6 +18,7 @@ This thesis is motivated by the need to make NAS both \textbf{efficient} and \te
 
 \section{Problem Statement}
 
+\TODO{I think there is repetition with what it was stated before}
 The growth of TinyML has unlocked the possibility of deploying deep learning models directly on resource-constrained embedded devices. However, designing neural network architectures that are both accurate and lightweight enough to run on microcontrollers remains a significant challenge.
 
 Transmitting sensor data to the cloud is costly in terms of latency, energy, and privacy. Running inference locally avoids these costs but requires models that are extremely compact and efficient. Techniques such as quantization, pruning, and architectural innovations like depthwise convolutions have made it possible to shrink models. Yet, these approaches often rely on \textbf{manual design}, which is time-intensive and may not yield optimal results for all tasks or devices.
@@ -31,6 +32,7 @@ Transmitting sensor data to the cloud is costly in terms of latency, energy, and
 These shortcomings make NAS impractical for TinyML scenarios and limit its adoption in low-power, memory-constrained platforms like the Arduino Nano 33 BLE.
 
 Thus, the \textbf{core problem} addressed in this thesis is twofold:
+
 
 \begin{enumerate}
     \item \textbf{How can we drastically accelerate NAS}, making it computationally feasible for small-scale research and practical deployment?
@@ -57,6 +59,7 @@ To achieve this overarching goal, the following specific research objectives are
     
     The choice of a GA is motivated by its ability to perform global search and handle multi-objective optimization, and by prior successes of evolutionary methods in architecture search. This objective includes defining an appropriate search space and genetic encoding for candidate network architectures.
 
+    \TODO{Again this thing that it is slow is Repeted in the Introduction}
     \item \textbf{Accelerate the NAS search process:} Improve the speed and computational efficiency of the NAS algorithm so that high-performing network architectures can be identified with significantly reduced search time. Conventional NAS techniques are notoriously time-consuming and computationally expensive---for example, early NAS experiments required on the order of tens of thousands of GPU-hours~\cite{pham2018efficient}. In this work, the NAS algorithm is optimized to converge more quickly to promising architectures. The goal is to reduce the overall time and resources needed for the search, making NAS feasible without access to vast compute resources.
 
 
@@ -79,7 +82,8 @@ The research employs a custom Genetic Algorithm (GA) for neural architecture sea
 
 \subsection{Embedded Deployment Focus}
 
-The resulting neural network models are designed specifically for deployment on a microcontroller-based platform: the Arduino Nano 33 BLE. All optimization efforts (e.g., model compression, quantization) and evaluations are geared toward this embedded device environment. The Arduino Nano 33 BLE board, featuring an Arm Cortex-M4F MCU running at 64~MHz with 1~MB flash and 256~KB RAM~\cite{ArduinoNano}, serves as the representative target for “resource-constrained embedded devices.” The scope includes using standard embedded ML toolchains, such as TensorFlow Lite for Microcontrollers, to run inference on the device. Τhe deployment scope to a single device, the research can deeply analyze the model’s performance under consistent and well-understood resource constraints.
+The resulting neural network models are optimized for deployment on microcontroller-based platforms, with the Arduino Nano 33 BLE serving as the primary reference device for evaluation. This board, featuring an Arm Cortex-M4F MCU running at 64\,MHz with 1\,MB flash and 256\,KB RAM~\cite{ArduinoNano}, exemplifies the type of resource-constrained embedded hardware targeted in this work. All optimization techniques---such as model compression and quantization---were guided by the constraints of such devices. Although deployment experiments were carried out specifically on the Arduino Nano 33 BLE, the developed code and methodology are designed to be portable across similar embedded platforms. Standard embedded ML toolchains, such as TensorFlow Lite for Microcontrollers, were used for inference, ensuring broad applicability beyond the specific hardware reference. By focusing the deployment on a single, well-characterized device, the research enables consistent evaluation under known resource constraints, while retaining generalizability to other comparable microcontroller-based systems.
+
 
 \clearpage
 
@@ -94,9 +98,12 @@ This research defines a clear set of metrics to evaluate both the quality and pr
 \end{itemize}
 The primary performance metrics are the following:
 
+\begin{comment}
 \textbf{Inference latency}
 
 This refers to the time it takes for the deployed model to process an input and produce a prediction on the Arduino Nano 33 BLE. Latency is critical in real-time embedded applications—such as gesture recognition, audio processing, or sensor data classification—where delayed responses can compromise functionality or user experience. Measuring latency ensures that the model is fast enough for time-sensitive applications.
+\end{comment}
+
 
 \textbf{Memory usage}
 
@@ -115,16 +122,23 @@ Although the focus is on efficiency, model accuracy on the CIFAR-100 dataset rem
 
 Energy efficiency is a critical concern for embedded systems. In this work, direct power measurements were successfully performed to quantify energy consumption, using appropriate tools to capture metrics such as power draw (in milliwatts) and energy usage (in joules). These measurements enabled a more rigorous evaluation of the models' efficiency on embedded hardware. Alongside these quantitative assessments, the design choices—such as minimizing model size, computation, and memory access—further contributed to reducing overall energy consumption.
 
+\clearpage
 
 \subsection{\textbf{Limitations and Exclusions}}
 
-Certain performance aspects are acknowledged but fall outside the scope of this study due to resource or technical limitations:
+Certain performance aspects are acknowledged but fall outside the scope of this study due to resource or technical constraints:
+
+\paragraph{\textbf{On-Device Deployment and Evaluation}:}
+This thesis does not investigate training neural networks directly on the microcontroller. All model training and architecture search are conducted using conventional computing resources. The role of the embedded device—specifically, the Arduino Nano 33 BLE—is limited to deployment and evaluation tasks.
+
+\begin{comment}
+Deployment on the microcontroller serves two main purposes: (1) verifying that the models fit within the device’s memory limits (1~MB flash and 256~KB RAM), and (2) measuring the energy consumption during inference. It is important to note, however, that the actual available memory for model deployment is lower than the nominal specifications, due to system overhead and runtime allocations. Therefore, on-device deployment provides practical insight into the true usable memory budget available for models.
+
+This approach reflects realistic usage scenarios, where microcontrollers are employed for energy-efficient inference under strict resource constraints, while the computationally intensive training phase is carried out off-device.
+ 
+\end{comment}
 
 
-
-
-\paragraph{\textbf{On-Device Training}:}
-The thesis does not address training on the microcontroller. All model training and architecture search are conducted using conventional computing systems (e.g., desktop or GPU-accelerated environments). The embedded device is used exclusively for inference, which reflects current practical use cases, as microcontrollers typically lack the computational capacity for full model training.
 
 \subsection{\textbf{Summary}}
 

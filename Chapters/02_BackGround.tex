@@ -11,7 +11,8 @@ These systems are characterized by limited resources in terms of processing powe
 
 Because many embedded devices run on battery or have tight power budgets, energy efficiency is a paramount concern. They are designed to operate with minimal power consumption---often on the order of milliwatts or less---while still performing their intended functions.
 
-In summary, an embedded system (especially one based on a microcontroller) tends to prioritize reliability and efficiency for a specific task, trading off raw computing performance for low power operation, small size, and simplicity. Embedded systems are ubiquitous in modern electronics, ranging from household appliances and wearable gadgets to automotive controllers and industrial sensors.
+In summary, embedded systems—particularly those based on microcontrollers—are designed to prioritize reliability, minimal memory usage, and energy efficiency over raw computational performance. Their architectures are optimized for executing specific, well-defined tasks under strict resource constraints, favoring low power consumption, compact form factors, and operational simplicity rather than high-throughput processing. These characteristics make embedded systems ideal for applications where responsiveness, longevity, and resource-aware operation are more critical than general-purpose computing power. As a result, they are widely used in modern electronics, including household appliances, wearable devices, automotive control units, and industrial sensors.
+
 
 A typical microcontroller-based embedded device might run at only a few tens of megahertz and have memory on the order of kilobytes to a few hundred kilobytes. For example, the Arduino Nano 33 BLE is a representative edge microcontroller platform that features a 32-bit Arm Cortex-M4 CPU running at 64~MHz, with 1~MB of flash storage and only 256~KB of RAM.
 
@@ -153,6 +154,7 @@ CNNs are a class of deep learning models specifically designed to process data w
 
 
 \subsection{Biological Motivation}
+\TODO{Ok good, but again might be Overkill}
 The design of CNNs is inspired by the visual processing mechanisms observed in the animal visual cortex, particularly the primary visual cortex (V1). Neuroscientific studies have shown that individual neurons in the visual cortex respond to specific regions of the visual field and are sensitive to certain features such as edges, orientations, and textures. These neurons are organized hierarchically: lower-level neurons detect simple patterns, while higher-level neurons combine those patterns to recognize complex shapes and objects.
 
 Similarly, CNNs are structured in such a way that earlier layers learn to detect low-level visual features (e.g., edges and corners), while deeper layers capture high-level representations, such as object parts or even entire objects.
@@ -199,6 +201,7 @@ CNNs offer several advantages over traditional machine learning models in the co
 
 \end{itemize}
 
+\TODO{Its ok but it might be a bit overkill}
 \subsection{Applications of CNNs}
 Convolutional Neural Networks have become a fundamental building block in the field of computer vision due to their exceptional ability to extract spatial hierarchies of features from image data. Their architecture is particularly well-suited for interpreting visual information, making them indispensable in numerous real-world applications across industries. Below are some of the most prominent domains where CNNs are applied:
 
@@ -263,7 +266,10 @@ Convolutional Neural Networks have become a fundamental building block in the fi
 
 The architecture of a CNN---including layer types, filter sizes, number of channels, and depth---directly affects both accuracy and computational cost. Designing optimal CNNs under such constraints is a challenging task. Neural Architecture Search (NAS) offers a solution by automating the exploration of possible architectures to find high-performing models under specific requirements \cite{pau2023quantitative}.
 
-NAS is a specialized AutoML technique that identifies the best neural network configuration for a given task and set of constraints. This is especially relevant for embedded applications, where constraints might include limited parameter count, memory size, inference time, or power consumption.
+\begin{comment}
+NAS is a specialized AutoML technique that identifies the best neural network configuration for a given task and set of constraints. This is especially relevant for embedded applications, where constraints might include limited parameter count, memory size, inference time, or power consumption.   
+\end{comment}
+
 
 NAS can incorporate such constraints into its search objective, enabling the discovery of CNN architectures that are suitable for deployment on resource-constrained platforms such as microcontrollers. Recent research, including projects like MCUNet, has shown that NAS can generate compact and efficient CNNs that retain high classification accuracy while fitting within tight hardware budgets. \cite{pau2023quantitative}.
 
@@ -271,15 +277,24 @@ These automatically discovered architectures have demonstrated success on vision
 
 \subsection{TakuNet}
 
+\begin{comment}
+ In this thesis, we adopted \textbf{TakuNet}—a lightweight convolutional neural network architecture originally proposed for real-time aerial image classification in emergency response scenarios~\cite{TakuNet}. TakuNet was explicitly designed to operate efficiently on embedded systems such as the NVIDIA Jetson Orin Nano and Raspberry Pi, while achieving high accuracy on aerial datasets like AIDER and AIDERv2. In our context, TakuNet serves as a reference architecture and proof of concept for applying the NAS algorithm to a specific dataset. It provides a concrete and well-established starting point to explore the effects of architecture search under embedded system constraints.   
+\end{comment}
+
+
+
 In this thesis, we adopted \textbf{TakuNet}—a lightweight convolutional neural network architecture originally proposed for real-time aerial image classification in emergency response scenarios \cite{TakuNet}. TakuNet was explicitly designed to operate efficiently on embedded systems such as the NVIDIA Jetson Orin Nano and Raspberry Pi, while achieving high accuracy on aerial datasets like AIDER and AIDERv2.
 
 The original TakuNet architecture employs depth-wise separable convolutions and an early downsampling stem to reduce spatial dimensions in the initial layers, significantly lowering computational complexity. It also integrates dense connections for improved gradient flow and convergence, grouped point-wise convolutions to reduce parameter count, and Global Response Normalization (GRN) to enhance feature diversity and contrast. Furthermore, the model is trained using half-precision floating point (FP16), which improves compatibility with hardware accelerators like NVIDIA TensorRT.
 
-In this work, we adopted TakuNet as a \textbf{baseline architecture and design template} due to its promising trade-off between accuracy, parameter count, and computational efficiency. Although the original implementation demonstrated competitive performance when compared to other state-of-the-art models (see Table~\ref{tab:model_comparison}), its parameter size and memory footprint remained too large for direct deployment on typical microcontroller-class devices. 
+In this work, we adopted TakuNet as a \textbf{baseline architecture and design template} due to its promising trade-off between accuracy, parameter count, and computational efficiency. Although the original implementation demonstrated competitive performance when compared to other state-of-the-art models (see Table~\ref{tab:model_comparison}), it also exhibited significantly lower resource demands in terms of memory and computation. This makes it particularly well-suited for deployment on microcontroller-class embedded devices, where resource constraints are a critical design consideration.
 
-To address these limitations while retaining the core strengths of the architecture, we employed a \textbf{Neural Architecture Search (NAS)} algorithm to systematically refine both the macro- and micro-architecture of TakuNet. The goal was to tailor the network to our specific datasets and hardware constraints, achieving efficient inference without sacrificing classification performance.
+\TODO{Modify this}
+Building upon the efficiency and suitability of this architecture, we employed a \textbf{Neural Architecture Search (NAS)} algorithm to further refine both the macro- and micro-architecture of the model. The objective was to tailor the network more precisely to our target datasets and hardware constraints, enhancing inference efficiency while maintaining strong classification performance.
 
-Further architectural details, along with additional enhancements aimed at improving validation accuracy within a limited number of training epochs, are provided in Chapter~\ref{chap:Architecture}.
+
+In addition, we integrated several enhancement techniques aimed at improving generalization and validation accuracy. Further architectural details and optimization strategies are discussed in Chapter~\ref{chap:Architecture}.
+
 
 
 \begin{table}[h!]
@@ -297,7 +312,7 @@ MobileNetV3 \cite{howard2019searching} & 4,208,437 & 16.08 & 0.915 & 206.22M \\
 ShuffleNet \cite{zhang2018shufflenet} & 1,258,729 & 5.03 & 0.908 & 176.82M \\
 EmergencyNet \cite{emergencynet} & 90,963 & 0.360 & 0.896 & 77.34M \\
 TinyEmergencyNet \cite{tinyemergencynet} & 39,334 & 0.160 & 0.895 & 36.30M \\
-\textbf{TakuNet$_\text{fp16}$ (ours)} & \textbf{37,685} & \textbf{0.15} & \textbf{0.943} & \textbf{35.93M} \\
+\textbf{TakuNet$_\text{fp16}$} & \textbf{37,685} & \textbf{0.15} & \textbf{0.943} & \textbf{35.93M} \\
 \hline
 \end{tabular}
 \caption{Comparison of model parameters, size, F1-score, and FLOPs on AIDER.}
